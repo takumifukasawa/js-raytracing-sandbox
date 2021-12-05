@@ -22,89 +22,126 @@
     const CANVAS_WIDTH = 200;
     const CANVAS_HEIGHT = 100;
 
-    const compileShader = (gl, vertexShaderText, fragmentShaderText) => {
-      const vertexShader = gl.createShader(gl.VERTEX_SHADER);
-      gl.shaderSource(vertexShader, vertexShaderText);
-      gl.compileShader(vertexShader);
-      const vertexShaderInfoLog = gl.getShaderInfoLog(vertexShader);
-      if(vertexShaderInfoLog.length > 0) {
-        throw vertexShaderInfoLog;
+    class GPU {
+      gl
+
+      constructor({ canvas }) {
+        this.gl = canvas.getContext('webgl2');
       }
 
-      const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
-      gl.shaderSource(fragmentShader, fragmentShaderText);
-      gl.compileShader(fragmentShader);
-      const fragmentShaderInfoLog = gl.getShaderInfoLog(fragmentShader);
-      if(fragmentShaderInfoLog.length > 0) {
-        throw fragmentShaderInfoLog;
+      clear() {
+        const gl = this.gl;
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
       }
 
-      return { vertexShader, fragmentShader };
+      // TODO: pass scene
+      render({ meshes }) {
+        const gl = this.gl;
+        for(let i = 0; i < meshes.length; i++)  {
+          const mesh = meshes[i];
+          const { shader, geometry, primitiveType } = mesh;
+          const { program } = shader;
+          const { indices, vao } = geometry;
+          gl.useProgram(program);
+          gl.bindVertexArray(vao);
+          if(indices) {
+            gl.drawElements(primitiveType, indices.length, gl.UNSIGNED_SHORT, 0);
+          } else {
+            // TODO: draw array
+          }
+        }
+        gl.flush();
+      }
     }
 
-    const createProgram = (gl, vertexShader, fragmentShader) => {
-      const program = gl.createProgram()
-      gl.attachShader(program, vertexShader);
-      gl.attachShader(program, fragmentShader);
-      gl.linkProgram(program)
-      const programInfoLog = gl.getProgramInfoLog(program);
-      if(programInfoLog.length > 0) {
-        throw programInfoLog;
+    class Mesh {
+      shader;
+      geometry;
+      primitiveType;
+      constructor({ shader, geometry, primitiveType }) {
+        this.shader = shader;
+        this.geometry = geometry;
+        this.primitiveType = primitiveType;
       }
-      return program;
     }
 
-    const createFullQuadVAO = (gl) => {
-      // 0 -------- 3
-      // |          |
-      // |          |
-      // |          |
-      // |          |
-      // 1 -------- 2
+    class Shader {
+      #gl;
+      program;
 
-      const positions = [
-        -1.0, 1.0, 0.0,                
-        -1.0, -1.0, 0.0,                
-        1.0, -1.0, 0.0,                
-        1.0, 1.0, 0.0,                
-      ];
+      constructor({ gl, vertexShaderText, fragmentShaderText }) {
+        this.#gl = gl;
 
-      const uvs = [
-        0.0, 0.0,
-        0.0, 1.0,
-        1.0, 1.0,
-        1.0, 0.0,
-      ];
+        const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertexShader, vertexShaderText);
+        gl.compileShader(vertexShader);
+        const vertexShaderInfoLog = gl.getShaderInfoLog(vertexShader);
+        if(vertexShaderInfoLog.length > 0) {
+          throw vertexShaderInfoLog;
+        }
 
-      const indices = [
-        0, 1, 2,
-        2, 3, 0
-      ];
+        const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragmentShader, fragmentShaderText);
+        gl.compileShader(fragmentShader);
+        const fragmentShaderInfoLog = gl.getShaderInfoLog(fragmentShader);
+        if(fragmentShaderInfoLog.length > 0) {
+          throw fragmentShaderInfoLog;
+        }
 
-      const vao = gl.createVertexArray();
-      gl.bindVertexArray(vao);
+        const program = gl.createProgram()
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program)
+        const programInfoLog = gl.getProgramInfoLog(program);
+        if(programInfoLog.length > 0) {
+          throw programInfoLog;
+        }
 
-      const positionVbo = gl.createBuffer();
-      const positionVboLocation = 0;
-      const positionVboStride = 3;
-      gl.bindBuffer(gl.ARRAY_BUFFER, positionVbo);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(positionVboLocation);
-      gl.vertexAttribPointer(positionVboLocation, positionVboStride, gl.FLOAT, false, 0, 0);
+        this.program = program;
+      }
+    }
 
-      const uvVbo = gl.createBuffer();
-      const uvVboLocation = 1;
-      const uvVboStride = 2;
-      gl.bindBuffer(gl.ARRAY_BUFFER, uvVbo);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
-      gl.enableVertexAttribArray(uvVboLocation);
-      gl.vertexAttribPointer(uvVboLocation, uvVboStride, gl.FLOAT, false, 0, 0);
+    class Geometry {
+      #gl;
+      vao;
 
-      const ibo = gl.createBuffer();
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), gl.STATIC_DRAW);
+      indices;
 
-      return { indices };
+      constructor({ gl, attributes, indices }) {
+        this.#gl = gl;
+
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+
+        this.vao = vao;
+
+        for(let i = 0; i < attributes.length; i++) {
+          const attribute = attributes[i];
+
+          const { stride, data } = attribute;
+          const location = attribute.location || i;
+
+          const vbo = gl.createBuffer();
+          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+          gl.enableVertexAttribArray(location);
+          gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
+
+        }
+          
+        // TODO: unbind vao
+
+        if(indices) {
+          this.indices = indices;
+          const ibo = gl.createBuffer();
+          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), gl.STATIC_DRAW);
+
+          // TODO: unbind indices
+        }
+
+      }
     }
 
     const main = () => {
@@ -113,7 +150,9 @@
       canvas.width = CANVAS_WIDTH;
       canvas.height = CANVAS_HEIGHT;
 
-      const gl = canvas.getContext("webgl2");
+      const gpu = new GPU({
+        canvas,
+      });
 
       const vertexShaderText = `#version 300 es
         layout(location = 0) in vec3 aPosition;
@@ -134,17 +173,57 @@
         }
       `;
 
-      const { vertexShader, fragmentShader } = compileShader(gl, vertexShaderText, fragmentShaderText);
-      const program = createProgram(gl, vertexShader, fragmentShader);
+      const fullQuadShader = new Shader({
+        gl: gpu.gl,
+        vertexShaderText,
+        fragmentShaderText,
+      });
 
-      const fullQuad = createFullQuadVAO(gl);
+      // 0 -------- 3
+      // |          |
+      // |          |
+      // |          |
+      // |          |
+      // 1 -------- 2
+      const fullQuadGeometry = new Geometry({
+        gl: gpu.gl,
+        attributes: [
+          {
+            name: 'position',
+            data: [
+              -1.0, 1.0, 0.0,                
+              -1.0, -1.0, 0.0,                
+              1.0, -1.0, 0.0,                
+              1.0, 1.0, 0.0,                
+            ],
+            stride: 3
+          },
+          {
+            name: 'uv',
+            data: [
+              0.0, 0.0,
+              0.0, 1.0,
+              1.0, 1.0,
+              1.0, 0.0,
+            ],
+            stride: 2
+          },
+        ],
+        indices: [
+          0, 1, 2,
+          2, 3, 0
+        ]
+      });
+
+      const fullQuadMesh = new Mesh({
+        shader: fullQuadShader,
+        geometry: fullQuadGeometry,
+        primitiveType: gpu.gl.TRIANGLES
+      });
 
       const tick = (time) => {
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.useProgram(program);
-        gl.drawElements(gl.TRIANGLES, fullQuad.indices.length, gl.UNSIGNED_SHORT, 0);
-        gl.flush();
+        gpu.clear();
+        gpu.render({ meshes: [ fullQuadMesh ]});
         requestAnimationFrame(tick);
       }
 
