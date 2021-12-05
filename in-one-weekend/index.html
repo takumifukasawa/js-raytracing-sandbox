@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>in-one-weekend</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas class="js-canvas"></canvas>
+
+  <script>
+    const CANVAS_WIDTH = 200;
+    const CANVAS_HEIGHT = 100;
+
+    const compileShader = (gl, vertexShaderText, fragmentShaderText) => {
+      const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+      gl.shaderSource(vertexShader, vertexShaderText);
+      gl.compileShader(vertexShader);
+      const vertexShaderInfoLog = gl.getShaderInfoLog(vertexShader);
+      if(vertexShaderInfoLog.length > 0) {
+        throw vertexShaderInfoLog;
+      }
+
+      const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+      gl.shaderSource(fragmentShader, fragmentShaderText);
+      gl.compileShader(fragmentShader);
+      const fragmentShaderInfoLog = gl.getShaderInfoLog(fragmentShader);
+      if(fragmentShaderInfoLog.length > 0) {
+        throw fragmentShaderInfoLog;
+      }
+
+      return { vertexShader, fragmentShader };
+    }
+
+    const createProgram = (gl, vertexShader, fragmentShader) => {
+      const program = gl.createProgram()
+      gl.attachShader(program, vertexShader);
+      gl.attachShader(program, fragmentShader);
+      gl.linkProgram(program)
+      const programInfoLog = gl.getProgramInfoLog(program);
+      if(programInfoLog.length > 0) {
+        throw programInfoLog;
+      }
+      return program;
+    }
+
+    const createFullQuadVAO = (gl) => {
+      // 0 -------- 3
+      // |          |
+      // |          |
+      // |          |
+      // |          |
+      // 1 -------- 2
+
+      const positions = [
+        -1.0, 1.0, 0.0,                
+        -1.0, -1.0, 0.0,                
+        1.0, -1.0, 0.0,                
+        1.0, 1.0, 0.0,                
+      ];
+
+      const uvs = [
+        0.0, 0.0,
+        0.0, 1.0,
+        1.0, 1.0,
+        1.0, 0.0,
+      ];
+
+      const indices = [
+        0, 1, 2,
+        2, 3, 0
+      ];
+
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+
+      const positionVbo = gl.createBuffer();
+      const positionVboLocation = 0;
+      const positionVboStride = 3;
+      gl.bindBuffer(gl.ARRAY_BUFFER, positionVbo);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(positions), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(positionVboLocation);
+      gl.vertexAttribPointer(positionVboLocation, positionVboStride, gl.FLOAT, false, 0, 0);
+
+      const uvVbo = gl.createBuffer();
+      const uvVboLocation = 1;
+      const uvVboStride = 2;
+      gl.bindBuffer(gl.ARRAY_BUFFER, uvVbo);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(uvs), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(uvVboLocation);
+      gl.vertexAttribPointer(uvVboLocation, uvVboStride, gl.FLOAT, false, 0, 0);
+
+      const ibo = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), gl.STATIC_DRAW);
+
+      return { indices };
+    }
+
+    const main = () => {
+      const canvas = document.querySelector(".js-canvas");
+
+      canvas.width = CANVAS_WIDTH;
+      canvas.height = CANVAS_HEIGHT;
+
+      const gl = canvas.getContext("webgl2");
+
+      const vertexShaderText = `#version 300 es
+        layout(location = 0) in vec3 aPosition;
+        layout(location = 1) in vec2 aUv;
+        out vec2 vUv;
+        void main() {
+          vUv = aUv;
+          gl_Position = vec4(aPosition, 1.);
+        }
+      `;
+
+      const fragmentShaderText = `#version 300 es
+        precision mediump float;
+        in vec2 vUv;
+        out vec4 outColor;
+        void main() {
+          outColor = vec4(vUv, 0., 1.);
+        }
+      `;
+
+      const { vertexShader, fragmentShader } = compileShader(gl, vertexShaderText, fragmentShaderText);
+      const program = createProgram(gl, vertexShader, fragmentShader);
+
+      const fullQuad = createFullQuadVAO(gl);
+
+      const tick = (time) => {
+        gl.flush();
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        gl.useProgram(program);
+        gl.drawElements(gl.TRIANGLES, fullQuad.indices.length, gl.UNSIGNED_SHORT, 0);
+        requestAnimationFrame(tick);
+      }
+
+      requestAnimationFrame(tick);
+    }
+
+    main();
+
+  </script>
+</body>
+</html>
