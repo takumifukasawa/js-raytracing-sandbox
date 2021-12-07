@@ -60,7 +60,7 @@
         for(let i = 0; i < meshes.length; i++)  {
           const mesh = meshes[i];
           const { shader, geometry, primitiveType } = mesh;
-          const { program } = shader;
+          const program = shader.getGLObject();
           const { indices, vao } = geometry;
           gl.useProgram(program);
           gl.bindVertexArray(vao);
@@ -76,7 +76,11 @@
     }
 
     class Shader extends AbstractGLObject {
-      program;
+      #program;
+
+      getGLObject() {
+        return this.#program;
+      }
 
       constructor({ gpu, vertexShaderText, fragmentShaderText }) {
         super({ gpu });
@@ -108,20 +112,17 @@
           throw programInfoLog;
         }
 
-        this.program = program;
+        this.#program = program;
       }
     }
 
-    class Geometry extends AbstractGLObject {
-      #gl;
+    class Geometry {
       vao;
       indices;
       attributes;
 
       constructor({ gpu, attributes, indices }) {
-        super({ gpu });
-
-        const gl = this.getGLContext();
+        const gl = gpu.gl;
 
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
