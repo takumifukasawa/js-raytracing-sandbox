@@ -47,33 +47,6 @@
         const gl = canvas.getContext('webgl2');
         this.#gl = gl;
       }
-
-      clear() {
-        const gl = this.gl;
-        gl.clearColor(0, 0, 0, 1);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-      }
-
-      // TODO: pass scene
-      render({ meshes }) {
-        const gl = this.gl;
-        for(let i = 0; i < meshes.length; i++)  {
-          const mesh = meshes[i];
-          const { shader, geometry, primitiveType } = mesh;
-          const program = shader.getGLObject();
-          const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
-          const indices = geometry.indices;
-          gl.useProgram(program);
-          gl.bindVertexArray(vertexArrayObject);
-          if(indices) {
-            gl.drawElements(primitiveType, indices.length, gl.UNSIGNED_SHORT, 0);
-          } else {
-            // TODO: primitive type に応じて vertexcount 調整
-            gl.drawArrays(primitiveType, 0, geometry.vertexCount);
-          }
-        }
-        gl.flush();
-      }
     }
 
     class Shader extends AbstractGLObject {
@@ -467,11 +440,63 @@
       }
     }
 
+    class Renderer {
+      #renderTarget;
+      #gpu; 
+
+      constructor({ gpu }) {
+        this.#gpu = gpu;
+      }
+
+      setRenderTarget(renderTarget) {
+        const gl = this.#gpu.gl;
+        this.#renderTarget = renderTarget;
+        if(this.#renderTarget) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, this.#renderTarget.framebuffer.getGLObject());
+        }
+      }
+
+      clearRenderTarget() {
+        const gl = this.#gpu.gl;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
+      clear(r = 0, g = 0, b = 0, a = 1) {
+        const gl = this.#gpu.gl;
+        gl.clearColor(r, g, b, a);
+        gl.clearDepth(1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      }
+
+      render({ meshes }) {
+        const gl = this.#gpu.gl;
+        for(let i = 0; i < meshes.length; i++)  {
+          const mesh = meshes[i];
+          const { shader, geometry, primitiveType } = mesh;
+          const program = shader.getGLObject();
+          const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
+          const indices = geometry.indices;
+          gl.useProgram(program);
+          gl.bindVertexArray(vertexArrayObject);
+          if(indices) {
+            gl.drawElements(primitiveType, indices.length, gl.UNSIGNED_SHORT, 0);
+          } else {
+            // TODO: primitive type に応じて vertexcount 調整
+            gl.drawArrays(primitiveType, 0, geometry.vertexCount);
+          }
+        }
+        gl.flush();
+      }
+    }
+
     const main = () => {
       const canvas = document.querySelector(".js-canvas");
 
-      canvas.width = CANVAS_WIDTH;
-      canvas.height = CANVAS_HEIGHT;
+      const sceneWidth = CANVAS_WIDTH;
+      const sceneHeight = CANVAS_HEIGHT;
+
+      canvas.width = sceneWidth;
+      canvas.height = sceneHeight;
 
       const gpu = new GPU({
         canvas,
@@ -544,14 +569,24 @@
         primitiveType: gpu.gl.TRIANGLES
       });
 
+      const renderer = new Renderer({ gpu });
+
       const renderTarget = new RenderTarget({ gpu });
 
-      const tick = (time) => {
-        gpu.clear();
-        gpu.render({ meshes: [ fullQuadMesh ]});
-        requestAnimationFrame(tick);
+      const setSize = () => {
+        renderTarget.setSize(sceneWidth, sceneHeight);
       }
 
+      const tick = (time) => {
+        renderer.clear();
+        renderer.setRenderTarget(renderTarget);
+        renderer.render({ meshes: [ fullQuadMesh ]});
+        // requestAnimationFrame(tick);
+      }
+
+      // exec
+
+      setSize();
       requestAnimationFrame(tick);
     }
 
