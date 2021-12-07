@@ -117,6 +117,29 @@
       }
     }
 
+    class VertexBufferObject extends AbstractGLObject {
+      #vbo;
+
+      getGLObject() {
+        return this.#vbo;
+      }
+
+      constructor({ gpu, location, data, stride }) {
+        super({ gpu });
+        const gl = this.getGLContext();
+        this.#vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(location);
+        gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      }
+    }
+
     class VertexArrayObject extends AbstractGLObject {
       #vao;
       #attributes
@@ -139,12 +162,10 @@
           const { stride, data } = attribute;
           const location = attribute.location || i;
 
-          const vbo = gl.createBuffer();
-          gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-          gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-          gl.enableVertexAttribArray(location);
-          gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
-          gl.bindBuffer(gl.ARRAY_BUFFER, null);
+          const vbo = new VertexBufferObject({
+            gpu, data, location, stride
+          });
+          vbo.unbind();
         }
       }
 
