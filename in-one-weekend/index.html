@@ -375,6 +375,8 @@
       constructor({ gpu }) {
         super({ gpu });
 
+        const gl = this.getGLContext();
+
         this.#framebuffer = gl.createFramebuffer();
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, this.#framebuffer);
@@ -404,7 +406,7 @@
         height = 1,
         useDepth = true
       }) {
-        const gl = gpu.getGLContext();
+        const gl = gpu.gl;
 
         this.#framebuffer = new Framebuffer({ gpu });
 
@@ -433,10 +435,11 @@
           gl.FRAMEBUFFER,
           gl.COLOR_ATTACHMENT0,
           gl.TEXTURE_2D,
-          this.#texture.getGLObject()
+          this.#texture.getGLObject(),
+          0
         );
 
-        gl.bindTexture(gl.TEXTURE_2D);
+        gl.bindTexture(gl.TEXTURE_2D, null);
 
         if(this.#depthRenderbuffer) {
           this.#depthRenderbuffer.unbind();
@@ -540,6 +543,8 @@
         geometry: fullQuadGeometry,
         primitiveType: gpu.gl.TRIANGLES
       });
+
+      const renderTarget = new RenderTarget({ gpu });
 
       const tick = (time) => {
         gpu.clear();
