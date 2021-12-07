@@ -22,31 +22,41 @@
     const CANVAS_WIDTH = 200;
     const CANVAS_HEIGHT = 100;
 
-    class BaseGL {
-      #gl
-      constructor({ gl }) {
-        this.#gl = gl;
+    class AbstractGLObject {
+      #gpu
+
+      constructor({ gpu }) {
+        this.#gpu = gpu;
       }
-      getGL() {
-        return this.#gl;
+      getGLContext() {
+        return this.#gpu.gl;
+      }
+      getGLObject() {
+        throw "should implement method";
       }
     }
 
-    class GPU extends BaseGL {
+    class GPU {
+      #gl;
+
+      get gl() {
+        return this.#gl;
+      }
+
       constructor({ canvas }) {
         const gl = canvas.getContext('webgl2');
-        super({ gl });
+        this.#gl = gl;
       }
 
       clear() {
-        const gl = this.getGL();
+        const gl = this.gl;
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
       }
 
       // TODO: pass scene
       render({ meshes }) {
-        const gl = this.getGL();
+        const gl = this.gl;
         for(let i = 0; i < meshes.length; i++)  {
           const mesh = meshes[i];
           const { shader, geometry, primitiveType } = mesh;
@@ -65,22 +75,13 @@
       }
     }
 
-    class Mesh {
-      shader;
-      geometry;
-      primitiveType;
-      constructor({ shader, geometry, primitiveType }) {
-        this.shader = shader;
-        this.geometry = geometry;
-        this.primitiveType = primitiveType;
-      }
-    }
-
-    class Shader extends BaseGL {
+    class Shader extends AbstractGLObject {
       program;
 
-      constructor({ gl, vertexShaderText, fragmentShaderText }) {
-        super({ gl });
+      constructor({ gpu, vertexShaderText, fragmentShaderText }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
 
         const vertexShader = gl.createShader(gl.VERTEX_SHADER);
         gl.shaderSource(vertexShader, vertexShaderText);
@@ -111,14 +112,16 @@
       }
     }
 
-    class Geometry extends BaseGL {
+    class Geometry extends AbstractGLObject {
       #gl;
       vao;
       indices;
       attributes;
 
-      constructor({ gl, attributes, indices }) {
-        super({ gl });
+      constructor({ gpu, attributes, indices }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
 
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
@@ -158,6 +161,22 @@
       }
     }
 
+    // class RenderBuffer extends BaseGL {
+    //   #renderbuffer;
+    //   constructor({ gl })
+    // }
+
+    class Mesh {
+      shader;
+      geometry;
+      primitiveType;
+      constructor({ shader, geometry, primitiveType }) {
+        this.shader = shader;
+        this.geometry = geometry;
+        this.primitiveType = primitiveType;
+      }
+    }
+
     const main = () => {
       const canvas = document.querySelector(".js-canvas");
 
@@ -188,7 +207,7 @@
       `;
 
       const fullQuadShader = new Shader({
-        gl: gpu.getGL(),
+        gpu,
         vertexShaderText,
         fragmentShaderText,
       });
@@ -200,7 +219,7 @@
       // |          |
       // 1 -------- 2
       const fullQuadGeometry = new Geometry({
-        gl: gpu.getGL(),
+        gpu,
         attributes: [
           {
             name: 'position',
@@ -232,7 +251,7 @@
       const fullQuadMesh = new Mesh({
         shader: fullQuadShader,
         geometry: fullQuadGeometry,
-        primitiveType: gpu.getGL().TRIANGLES
+        primitiveType: gpu.gl.TRIANGLES
       });
 
       const tick = (time) => {
