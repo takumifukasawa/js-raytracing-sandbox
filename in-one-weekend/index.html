@@ -22,22 +22,31 @@
     const CANVAS_WIDTH = 200;
     const CANVAS_HEIGHT = 100;
 
-    class GPU {
-      gl
+    class BaseGL {
+      #gl
+      constructor({ gl }) {
+        this.#gl = gl;
+      }
+      getGL() {
+        return this.#gl;
+      }
+    }
 
+    class GPU extends BaseGL {
       constructor({ canvas }) {
-        this.gl = canvas.getContext('webgl2');
+        const gl = canvas.getContext('webgl2');
+        super({ gl });
       }
 
       clear() {
-        const gl = this.gl;
+        const gl = this.getGL();
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
       }
 
       // TODO: pass scene
       render({ meshes }) {
-        const gl = this.gl;
+        const gl = this.getGL();
         for(let i = 0; i < meshes.length; i++)  {
           const mesh = meshes[i];
           const { shader, geometry, primitiveType } = mesh;
@@ -67,12 +76,11 @@
       }
     }
 
-    class Shader {
-      #gl;
+    class Shader extends BaseGL {
       program;
 
       constructor({ gl, vertexShaderText, fragmentShaderText }) {
-        this.#gl = gl;
+        super({ gl });
 
         const vertexShader = gl.createShader(gl.VERTEX_SHADER);
         gl.shaderSource(vertexShader, vertexShaderText);
@@ -103,14 +111,14 @@
       }
     }
 
-    class Geometry {
+    class Geometry extends BaseGL {
       #gl;
       vao;
       indices;
       attributes;
 
       constructor({ gl, attributes, indices }) {
-        this.#gl = gl;
+        super({ gl });
 
         const vao = gl.createVertexArray();
         gl.bindVertexArray(vao);
@@ -180,7 +188,7 @@
       `;
 
       const fullQuadShader = new Shader({
-        gl: gpu.gl,
+        gl: gpu.getGL(),
         vertexShaderText,
         fragmentShaderText,
       });
@@ -192,7 +200,7 @@
       // |          |
       // 1 -------- 2
       const fullQuadGeometry = new Geometry({
-        gl: gpu.gl,
+        gl: gpu.getGL(),
         attributes: [
           {
             name: 'position',
@@ -215,16 +223,16 @@
             stride: 2
           },
         ],
-        // indices: [
-        //   0, 1, 2,
-        //   2, 3, 0
-        // ]
+        indices: [
+          0, 1, 2,
+          2, 3, 0
+        ]
       });
 
       const fullQuadMesh = new Mesh({
         shader: fullQuadShader,
         geometry: fullQuadGeometry,
-        primitiveType: gpu.gl.TRIANGLES
+        primitiveType: gpu.getGL().TRIANGLES
       });
 
       const tick = (time) => {
