@@ -20,7 +20,7 @@
 
   <script>
     const CANVAS_WIDTH = 200;
-    const CANVAS_HEIGHT = 100;
+    const CANVAS_HEIGHT = 200;
 
     class AbstractGLObject {
       #gpu
@@ -61,9 +61,10 @@
           const mesh = meshes[i];
           const { shader, geometry, primitiveType } = mesh;
           const program = shader.getGLObject();
-          const { indices, vao } = geometry;
+          const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
+          const indices = geometry.indices;
           gl.useProgram(program);
-          gl.bindVertexArray(vao);
+          gl.bindVertexArray(vertexArrayObject);
           if(indices) {
             gl.drawElements(primitiveType, indices.length, gl.UNSIGNED_SHORT, 0);
           } else {
@@ -116,19 +117,21 @@
       }
     }
 
-    class Geometry {
-      vao;
-      indices;
-      attributes;
+    class VertexArrayObject extends AbstractGLObject {
+      #vao;
+      #attributes
 
-      constructor({ gpu, attributes, indices }) {
-        const gl = gpu.gl;
+      getGLObject() {
+        return this.#vao;
+      }
 
-        const vao = gl.createVertexArray();
-        gl.bindVertexArray(vao);
+      constructor({ gpu, attributes }) {
+        super({ gpu });
 
-        this.attributes = attributes;
-        this.vao = vao;
+        const gl = this.getGLContext();
+        this.#vao = gl.createVertexArray();
+
+        this.bind();
 
         for(let i = 0; i < attributes.length; i++) {
           const attribute = attributes[i];
@@ -143,17 +146,72 @@
           gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
           gl.bindBuffer(gl.ARRAY_BUFFER, null);
         }
+      }
+
+      bind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(this.#vao);
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(null);
+      }
+    }
+
+    class IndexBufferObject extends AbstractGLObject {
+      #indexBufferObject;
+      #indices;
+
+      constructor({ gpu, indices }) {
+        super({ gpu });
+
+        this.#indices = indices;
+
+        const gl = this.getGLContext();
+        this.#indexBufferObject = gl.createBuffer();
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBufferObject);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), gl.STATIC_DRAW);
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(null);
+      }
+    }
+
+    class Geometry {
+      #vertexArrayObject;
+      #indexBufferObject;
+      #attributes;
+      #indices;
+
+      get vertexArrayObject() {
+        return this.#vertexArrayObject;
+      }
+
+      get indices() {
+        return this.#indices;
+      }
+
+      constructor({ gpu, attributes, indices }) {
+        const gl = gpu.gl;
+
+        this.#attributes = attributes;
+
+        this.#vertexArrayObject = new VertexArrayObject({ gpu, attributes });
 
         if(indices) {
-          this.indices = indices;
-          const ibo = gl.createBuffer();
-          gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), gl.STATIC_DRAW);
+          this.#indices = indices;
+          this.#indexBufferObject = new IndexBufferObject({ gpu, indices });
         }
 
         // unbinds
-        gl.bindVertexArray(null);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
+        this.#vertexArrayObject.unbind();
+        if(this.#indexBufferObject) {
+          this.#indexBufferObject.unbind();
+        }
       }
 
       get vertexCount() {
@@ -162,10 +220,217 @@
       }
     }
 
-    // class RenderBuffer extends BaseGL {
-    //   #renderbuffer;
-    //   constructor({ gl })
-    // }
+    class Texture extends AbstractGLObject {
+      #texture;
+      #img;
+
+      static WrapType = {
+        ClampToEdge: "ClampToEdge",
+        Repeat: "Repeat"
+      }
+
+      getGLObject() {
+        return this.#texture;
+      }
+
+      constructor({
+        gpu,
+        img,
+        width,
+        height,
+        mipmap = true,
+        wrapS = Texture.WrapType.ClampToEdge,
+        wrapT = Texture.WrapType.ClampToEdge,
+        flipY = true
+      }) {
+        super({ gpu });
+
+        this.#img = img;
+
+        const gl = this.getGLContext();
+
+        this.#texture = gl.createTexture();
+
+        gl.bindTexture(gl.TEXTURE_2D, this.#texture);
+
+        if(this.#img) {
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, !!flipY);
+        }
+
+        if(width && height) {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+        } else {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+        }
+
+        if(mipmap) {
+          gl.generateMipmap(gl.TEXTURE_2D);
+        }
+
+        // TODO: specify filter
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+        switch(wrapS) {
+          case Texture.WrapType.Repeat:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            break;
+          case Texture.WrapType.ClampToEdge:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            break;
+        }
+
+        switch(wrapT) {
+          case Texture.WrapType.Repeat:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+            break;
+          case Texture.WrapType.ClampToEdge:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            break;
+        }
+
+        // TODO: unbind
+      }
+
+      setSize(width, height) {
+        const gl = this.getGLContext();
+        gl.bindTexture(gl.TEXTURE_2D, this.#texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+      }
+    }
+
+    class Renderbuffer extends AbstractGLObject {
+      #renderbuffer;
+
+      static Type = {
+        Depth: "Depth",
+      };
+
+      getGLObject() {
+        return this.#renderbuffer;
+      }      
+
+      constructor({ gpu }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
+
+        this.#renderbuffer = gl.createRenderbuffer();
+        
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+      }
+
+      setSize(width, height) {
+        const gl = this.getGLContext();
+
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+      }
+
+      bind() {
+        const gl = this.getGLContext();
+
+        gl.framebufferRenderbuffer(
+          gl.FRAMEBUFFER,
+          gl.DEPTH_ATTACHMENT,
+          gl.RENDERBUFFER,
+          this.getGLObject()
+        );
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+
+        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      }
+    }
+
+    class Framebuffer extends AbstractGLObject {
+      #framebuffer;
+
+      getGLObject() {
+        return this.#framebuffer;
+      }
+
+      constructor({ gpu }) {
+        super({ gpu });
+
+        this.#framebuffer = gl.createFramebuffer();
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.#framebuffer);
+      }
+    }
+
+    class RenderTarget {
+      #texture;
+      #framebuffer;
+      #depthRenderbuffer;
+
+      get texture() {
+        return this.#texture;
+      }
+
+      get framebuffer() {
+        return this.#framebuffer;
+      }
+
+      get depthRenderbuffer() {
+        return this.#depthRenderbuffer;
+      }
+
+      constructor({
+        gpu,
+        width = 1,
+        height = 1,
+        useDepth = true
+      }) {
+        const gl = gpu.getGLContext();
+
+        this.#framebuffer = new Framebuffer({ gpu });
+
+        if(useDepth) {
+          this.#depthRenderbuffer = new Renderbuffer({
+            gpu,
+            width,
+            height,
+            type: Renderbuffer.Type.Depth
+          });
+        }
+
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.bind();
+        }
+
+        this.#texture = new Texture({
+          gpu,
+          width: 1,
+          height: 1,
+          mipmap: false,
+          flipY: true,
+        });
+
+        gl.framebufferTexture2D(
+          gl.FRAMEBUFFER,
+          gl.COLOR_ATTACHMENT0,
+          gl.TEXTURE_2D,
+          this.#texture.getGLObject()
+        );
+
+        gl.bindTexture(gl.TEXTURE_2D);
+
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.unbind();
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
+      setSize(width, height) {
+        this.#texture.setSize(width, height);
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.setSize(width, height);
+        }
+      }
+    }
 
     class Mesh {
       shader;
