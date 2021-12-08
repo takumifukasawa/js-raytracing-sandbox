@@ -600,10 +600,10 @@
       }
 
       const tick = (time) => {
-        // renderer.clear();
+        renderer.clear();
         renderer.setRenderTarget(renderTarget);
         renderer.render({ meshes: [ fullQuadMesh ]});
-        // requestAnimationFrame(tick);
+        requestAnimationFrame(tick);
       }
 
       // exec
