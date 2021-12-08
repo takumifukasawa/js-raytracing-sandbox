@@ -451,13 +451,31 @@
     }
 
     class Mesh {
-      shader;
-      geometry;
-      primitiveType;
+      #shader;
+      #geometry;
+      #primitiveType;
+
+      get shader() {
+        return this.#shader;
+      }
+
+      get geometry() {
+        return this.#geometry;
+      }
+
+      get primitiveType() {
+        return this.#primitiveType;
+      }
+
+      static PrimitiveType = {
+        Point: "Point",
+        Triangle: "Triangle",
+      };
+
       constructor({ shader, geometry, primitiveType }) {
-        this.shader = shader;
-        this.geometry = geometry;
-        this.primitiveType = primitiveType;
+        this.#shader = shader;
+        this.#geometry = geometry;
+        this.#primitiveType = primitiveType;
       }
     }
 
@@ -493,12 +511,23 @@
         const gl = this.#gpu.gl;
         for(let i = 0; i < meshes.length; i++)  {
           const mesh = meshes[i];
-          const { shader, geometry, primitiveType } = mesh;
+          const { shader, geometry } = mesh;
           const program = shader.getGLObject();
           const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
           const indices = geometry.indices;
           gl.useProgram(program);
           gl.bindVertexArray(vertexArrayObject);
+          
+          let primitiveType = null;
+          switch(mesh.primitiveType) {
+            case Mesh.PrimitiveType.Point:
+              primitiveType = gl.POINT
+              break;
+            case Mesh.PrimitiveType.Triangle:
+              primitiveType = gl.TRIANGLE
+              break;
+          }
+
           if(indices) {
             gl.drawElements(primitiveType, indices.length, gl.UNSIGNED_SHORT, 0);
           } else {
@@ -587,7 +616,7 @@
       const fullQuadMesh = new Mesh({
         shader: fullQuadShader,
         geometry: fullQuadGeometry,
-        primitiveType: gpu.gl.TRIANGLES
+        primitiveType: Mesh.PrimitiveType.Triangle
       });
 
       const renderer = new Renderer({ gpu });
