@@ -239,7 +239,7 @@
       }) {
         super({ gpu });
 
-        this.#img = img;
+        this.#img = img || null;
 
         const gl = this.getGLContext();
 
@@ -295,6 +295,7 @@
 
     class Renderbuffer extends AbstractGLObject {
       #renderbuffer;
+      #type;
 
       static Type = {
         Depth: "Depth",
@@ -304,20 +305,40 @@
         return this.#renderbuffer;
       }      
 
-      constructor({ gpu }) {
+      constructor({ gpu, type, width, height }) {
         super({ gpu });
+
+        this.#type = type;
 
         const gl = this.getGLContext();
 
         this.#renderbuffer = gl.createRenderbuffer();
         
         gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+
+        if(this.#type === Renderbuffer.Type.Depth) {
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            gl.DEPTH_COMPONENT16,
+            width,
+            height
+          );
+        }
       }
 
       setSize(width, height) {
         const gl = this.getGLContext();
 
         gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+
+        if(this.#type === Renderbuffer.Type.Depth) {
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            gl.DEPTH_COMPONENT16,
+            width,
+            height
+          );
+        }
       }
 
       bind() {
@@ -464,8 +485,9 @@
       clear(r = 0, g = 0, b = 0, a = 1) {
         const gl = this.#gpu.gl;
         gl.clearColor(r, g, b, a);
-        gl.clearDepth(1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        // gl.clearDepth(1.0);
+        // gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.clear(gl.COLOR_BUFFER_BIT);
       }
 
       render({ meshes }) {
@@ -485,7 +507,7 @@
             gl.drawArrays(primitiveType, 0, geometry.vertexCount);
           }
         }
-        gl.flush();
+        // gl.flush();
       }
     }
 
@@ -578,7 +600,7 @@
       }
 
       const tick = (time) => {
-        renderer.clear();
+        // renderer.clear();
         renderer.setRenderTarget(renderTarget);
         renderer.render({ meshes: [ fullQuadMesh ]});
         // requestAnimationFrame(tick);
