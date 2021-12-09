@@ -56,7 +56,7 @@
         return this.#program;
       }
 
-      constructor({ gpu, vertexShaderText, fragmentShaderText }) {
+      constructor({ gpu, vertexShaderText, fragmentShaderText, u }) {
         super({ gpu });
 
         const gl = this.getGLContext();
@@ -172,6 +172,31 @@
       unbind() {
         const gl = this.getGLContext();
         gl.bindVertexArray(null);
+      }
+    }
+
+    class Material {
+      #shader;
+      #uniforms;
+      #primitiveType;
+
+      static PrimitiveType = {
+        Points: "Points",
+        Triangles: "Triangles",
+      };
+
+      get primitiveType() {
+        return this.#primitiveType;
+      }
+
+      get shader() {
+        return this.#shader;
+      }
+
+      constructor({ gpu, vertexShader, fragmentShader, uniforms, primitiveType }) {
+        this.#shader = new Shader({ gpu, vertexShaderText: vertexShader, fragmentShaderText: fragmentShader });
+        this.#uniforms = uniforms;
+        this.#primitiveType = primitiveType;
       }
     }
 
@@ -451,31 +476,20 @@
     }
 
     class Mesh {
-      #shader;
+      #material;
       #geometry;
-      #primitiveType;
 
-      get shader() {
-        return this.#shader;
+      get material() {
+        return this.#material;
       }
 
       get geometry() {
         return this.#geometry;
       }
 
-      get primitiveType() {
-        return this.#primitiveType;
-      }
-
-      static PrimitiveType = {
-        Point: "Point",
-        Triangle: "Triangle",
-      };
-
-      constructor({ shader, geometry, primitiveType }) {
-        this.#shader = shader;
+      constructor({ material, geometry }) {
+        this.#material = material;
         this.#geometry = geometry;
-        this.#primitiveType = primitiveType;
       }
     }
 
@@ -511,19 +525,19 @@
         const gl = this.#gpu.gl;
         for(let i = 0; i < meshes.length; i++)  {
           const mesh = meshes[i];
-          const { shader, geometry } = mesh;
-          const program = shader.getGLObject();
+          const { material, geometry } = mesh;
+          const program = material.shader.getGLObject();
           const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
           const indices = geometry.indices;
           gl.useProgram(program);
           gl.bindVertexArray(vertexArrayObject);
           
           let primitiveType = null;
-          switch(mesh.primitiveType) {
-            case Mesh.PrimitiveType.Points:
+          switch(mesh.material.primitiveType) {
+            case Material.PrimitiveType.Points:
               primitiveType = gl.POINTS;
               break;
-            case Mesh.PrimitiveType.Triangles:
+            case Material.PrimitiveType.Triangles:
               primitiveType = gl.TRIANGLES;
               break;
           }
@@ -575,10 +589,12 @@
         }
       `;
 
-      const fullQuadShader = new Shader({
+      const fullQuadMaterial = new Material({
         gpu,
-        vertexShaderText: fullQuadVertexShaderText,
-        fragmentShaderText: fullQuadFragmentShaderText,
+        vertexShader: fullQuadVertexShaderText,
+        fragmentShader: fullQuadFragmentShaderText,
+        uniforms: {},
+        primitiveType: Material.PrimitiveType.Triangles
       });
 
       // 0 -------- 3
@@ -618,9 +634,8 @@
       });
 
       const fullQuadMesh = new Mesh({
-        shader: fullQuadShader,
+        material: fullQuadMaterial,
         geometry: fullQuadGeometry,
-        primitiveType: Mesh.PrimitiveType.Triangles
       });
 
 
@@ -640,11 +655,12 @@
         }
       `;
 
-      const pointMaterial = new Shader({
+      const pointMaterial = new Material({
         gpu,
-        vertexShaderText: pointVertexShaderText,
-        fragmentShaderText: pointFragmentShaderText
-      });
+        vertexShader: pointVertexShaderText,
+        fragmentShader: pointFragmentShaderText,
+        uniforms: {},
+        primitiveType: Material.PrimitiveType.Points });
 
       const pointGeoemtry = new Geometry({
         gpu,
@@ -654,7 +670,7 @@
             data: ([...new Array(4096)].map((_, i) => [
               Math.random() * 2 - 1,
               Math.random() * 2 - 1,
-              0.1
+              0
             ])).flat(),
             stride: 3
           }
@@ -662,12 +678,9 @@
       });
 
       const pointMesh = new Mesh({
-        shader: pointMaterial,
+        material: pointMaterial,
         geometry: pointGeoemtry,
-        primitiveType: Mesh.PrimitiveType.Points
       });
-
-      console.log(pointMesh)
 
       const renderer = new Renderer({ gpu });
 
@@ -679,9 +692,10 @@
 
       const tick = (time) => {
         renderer.clear();
-        // renderer.setRenderTarget(renderTarget);
-        // renderer.render({ meshes: [ fullQuadMesh ]});
-        renderer.render({ meshes: [ pointMesh ]});
+        renderer.setRenderTarget(renderTarget);
+        // renderer.render({ meshes: [ pointMesh ]});
+        // renderer.clearRenderTarget();
+        renderer.render({ meshes: [ fullQuadMesh ]});
         requestAnimationFrame(tick);
       }
 
