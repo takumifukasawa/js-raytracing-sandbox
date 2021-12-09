@@ -21,6 +21,7 @@
   <script>
     const CANVAS_WIDTH = 200;
     const CANVAS_HEIGHT = 200;
+    const DRAW_POINT_NUM = 128;
 
     class AbstractGLObject {
       #gpu
@@ -97,16 +98,25 @@
 
     class VertexBufferObject extends AbstractGLObject {
       #vbo;
+      #usage;
+      #name;
 
       getGLObject() {
         return this.#vbo;
       }
 
-      constructor({ gpu, location, data, stride, usage }) {
+      get name() {
+        this.#name;
+      }
+
+      constructor({ gpu, name, location, data, stride, usage }) {
         super({ gpu });
         const gl = this.getGLContext();
         this.#vbo = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
+
+        this.#usage = usage;
+        this.#name = name;
 
         let vertexUsage = null;
         switch(usage) {
@@ -117,23 +127,37 @@
             vertexUsage = gl.DYNAMIC_DRAW;
             break;
           default:
-            throw "invalid vertex usage type";
+            throw "invalid vertex usage type for set buffer data.";
         }
 
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), vertexUsage);
         gl.enableVertexAttribArray(location);
         gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
+
+        // NOTE: 親側で処理をするべきかも
+        this.unbind();
       }
 
       unbind() {
         const gl = this.getGLContext();
         gl.bindBuffer(gl.ARRAY_BUFFER, null);
       }
+
+      update(data) {
+        if(this.#usage != GPU.VertexUsageType.DynamicDraw) {
+          console.error("invalid vertex usage type for dynamic update.");
+          return;
+        }
+        const gl = this.getGLContext();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(data));
+        this.unbind();
+      }
     }
 
     class VertexArrayObject extends AbstractGLObject {
       #vao;
-      #attributes
+      #vboList = [];
 
       getGLObject() {
         return this.#vao;
@@ -150,18 +174,24 @@
         for(let i = 0; i < attributes.length; i++) {
           const attribute = attributes[i];
 
-          const { stride, data, usage } = attribute;
+          const { name, stride, data, usage } = attribute;
           const location = attribute.location || i;
 
           const vbo = new VertexBufferObject({
             gpu,
+            name,
             data,
             location,
             stride,
             usage: usage || GPU.VertexUsageType.StaticDraw
           });
-          vbo.unbind();
+
+          this.#vboList[i] = {
+            name, vbo
+          }
         }
+
+        // NOTE: indexを使う場合もあるのでここでunbindはしない
       }
 
       bind() {
@@ -172,6 +202,23 @@
       unbind() {
         const gl = this.getGLContext();
         gl.bindVertexArray(null);
+      }
+
+      #findVertexBufferObject(name) {
+        for(let i = 0; i < this.#vboList.length; i++) {
+          if(name === this.#vboList[i].name) {
+            return this.#vboList[i];
+          }
+        }
+        return null;
+      }
+
+      updateVertexBufferObject(name, data) {
+        const result = this.#findVertexBufferObject(name);
+        if(!result) {
+          return;
+        }
+        result.vbo.update(data);
       }
     }
 
@@ -245,6 +292,10 @@
         return this.#indices;
       }
 
+      get attributes() {
+        return this.#attributes;
+      }
+
       constructor({ gpu, attributes, indices }) {
         const gl = gpu.gl;
 
@@ -267,6 +318,11 @@
       get vertexCount() {
         const attribute = this.#attributes[0];
         return attribute.data.length / attribute.stride;
+      }
+
+      updateAttribute(name, data) {
+        // NOTE: 関数を呼ぶだけの関数になっているので変えたい
+        this.#vertexArrayObject.updateVertexBufferObject(name, data);
       }
     }
 
@@ -553,7 +609,7 @@
         }
       }
 
-      clearRenderTarget() {
+      unsetRenderTarget() {
         const gl = this.#gpu.gl;
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
       }
@@ -756,12 +812,12 @@
         uniforms: {},
         primitiveType: Material.PrimitiveType.Points });
 
-      const pointGeoemtry = new Geometry({
+      const pointGeometry = new Geometry({
         gpu,
         attributes: [
           {
             name: 'position',
-            data: ([...new Array(4096)].map((_, i) => [
+            data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
               Math.random() * 2 - 1,
               Math.random() * 2 - 1,
               0
@@ -774,7 +830,7 @@
 
       const pointMesh = new Mesh({
         material: pointMaterial,
-        geometry: pointGeoemtry,
+        geometry: pointGeometry,
       });
 
       const setSize = () => {
@@ -782,10 +838,19 @@
       }
 
       const tick = (time) => {
+        pointGeometry.updateAttribute(
+          'position', 
+          ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+            Math.random() * 2 - 1,
+            Math.random() * 2 - 1,
+            0
+          ])).flat()
+        );
+ 
         renderer.clear();
         renderer.setRenderTarget(renderTarget);
         renderer.render({ meshes: [ pointMesh ]});
-        renderer.clearRenderTarget();
+        renderer.unsetRenderTarget();
         renderer.render({ meshes: [ fullQuadMesh ]});
         requestAnimationFrame(tick);
       }
