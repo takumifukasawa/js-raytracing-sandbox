@@ -209,7 +209,7 @@
       }
 
       get vertexCount() {
-        const attribute = this.attributes[0];
+        const attribute = this.#attributes[0];
         return attribute.data.length / attribute.stride;
       }
     }
@@ -520,12 +520,16 @@
           
           let primitiveType = null;
           switch(mesh.primitiveType) {
-            case Mesh.PrimitiveType.Point:
+            case Mesh.PrimitiveType.Points:
               primitiveType = gl.POINTS;
               break;
-            case Mesh.PrimitiveType.Triangle:
+            case Mesh.PrimitiveType.Triangles:
               primitiveType = gl.TRIANGLES;
               break;
+          }
+
+          if(primitiveType === null) {
+            console.error("invalid primitive type.");
           }
 
           if(indices) {
@@ -552,7 +556,7 @@
         canvas,
       });
 
-      const vertexShaderText = `#version 300 es
+      const fullQuadVertexShaderText = `#version 300 es
         layout(location = 0) in vec3 aPosition;
         layout(location = 1) in vec2 aUv;
         out vec2 vUv;
@@ -562,7 +566,7 @@
         }
       `;
 
-      const fragmentShaderText = `#version 300 es
+      const fullQuadFragmentShaderText = `#version 300 es
         precision mediump float;
         in vec2 vUv;
         out vec4 outColor;
@@ -573,8 +577,8 @@
 
       const fullQuadShader = new Shader({
         gpu,
-        vertexShaderText,
-        fragmentShaderText,
+        vertexShaderText: fullQuadVertexShaderText,
+        fragmentShaderText: fullQuadFragmentShaderText,
       });
 
       // 0 -------- 3
@@ -616,8 +620,54 @@
       const fullQuadMesh = new Mesh({
         shader: fullQuadShader,
         geometry: fullQuadGeometry,
-        primitiveType: Mesh.PrimitiveType.Triangle
+        primitiveType: Mesh.PrimitiveType.Triangles
       });
+
+
+      const pointVertexShaderText = `#version 300 es
+        layout(location = 0) in vec3 aPosition;
+        void main() {
+          gl_Position = vec4(aPosition, 1);
+          gl_PointSize = 1.0;
+        }
+      `;
+
+      const pointFragmentShaderText = `#version 300 es
+        precision mediump float;
+        out vec4 outColor;
+        void main() {
+          outColor = vec4(1, 0, 0, 1);
+        }
+      `;
+
+      const pointMaterial = new Shader({
+        gpu,
+        vertexShaderText: pointVertexShaderText,
+        fragmentShaderText: pointFragmentShaderText
+      });
+
+      const pointGeoemtry = new Geometry({
+        gpu,
+        attributes: [
+          {
+            name: 'position',
+            data: ([...new Array(4096)].map((_, i) => [
+              Math.random() * 2 - 1,
+              Math.random() * 2 - 1,
+              0.1
+            ])).flat(),
+            stride: 3
+          }
+        ]
+      });
+
+      const pointMesh = new Mesh({
+        shader: pointMaterial,
+        geometry: pointGeoemtry,
+        primitiveType: Mesh.PrimitiveType.Points
+      });
+
+      console.log(pointMesh)
 
       const renderer = new Renderer({ gpu });
 
@@ -629,8 +679,9 @@
 
       const tick = (time) => {
         renderer.clear();
-        renderer.setRenderTarget(renderTarget);
-        renderer.render({ meshes: [ fullQuadMesh ]});
+        // renderer.setRenderTarget(renderTarget);
+        // renderer.render({ meshes: [ fullQuadMesh ]});
+        renderer.render({ meshes: [ pointMesh ]});
         requestAnimationFrame(tick);
       }
 
