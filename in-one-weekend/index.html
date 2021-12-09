@@ -43,6 +43,11 @@
         return this.#gl;
       }
 
+      static VertexUsageType = {
+        StaticDraw: "StaticDraw",
+        DynamicDraw: "DynamicDraw"
+      }
+
       constructor({ canvas }) {
         const gl = canvas.getContext('webgl2');
         this.#gl = gl;
@@ -97,12 +102,25 @@
         return this.#vbo;
       }
 
-      constructor({ gpu, location, data, stride }) {
+      constructor({ gpu, location, data, stride, usage }) {
         super({ gpu });
         const gl = this.getGLContext();
         this.#vbo = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+
+        let vertexUsage = null;
+        switch(usage) {
+          case GPU.VertexUsageType.StaticDraw:
+            vertexUsage = gl.STATIC_DRAW;
+            break;
+          case GPU.VertexUsageType.DynamicDraw:
+            vertexUsage = gl.DYNAMIC_DRAW;
+            break;
+          default:
+            throw "invalid vertex usage type";
+        }
+
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), vertexUsage);
         gl.enableVertexAttribArray(location);
         gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
       }
@@ -132,11 +150,15 @@
         for(let i = 0; i < attributes.length; i++) {
           const attribute = attributes[i];
 
-          const { stride, data } = attribute;
+          const { stride, data, usage } = attribute;
           const location = attribute.location || i;
 
           const vbo = new VertexBufferObject({
-            gpu, data, location, stride
+            gpu,
+            data,
+            location,
+            stride,
+            usage: usage || GPU.VertexUsageType.StaticDraw
           });
           vbo.unbind();
         }
@@ -744,7 +766,8 @@
               Math.random() * 2 - 1,
               0
             ])).flat(),
-            stride: 3
+            stride: 3,
+            usage: GPU.VertexUsageType.DynamicDraw
           }
         ]
       });
