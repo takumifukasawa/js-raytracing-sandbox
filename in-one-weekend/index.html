@@ -184,6 +184,11 @@
         Points: "Points",
         Triangles: "Triangles",
       };
+      
+      static UniformType = {
+        Texture2D: "Texture2D"
+      };
+
 
       get primitiveType() {
         return this.#primitiveType;
@@ -191,6 +196,10 @@
 
       get shader() {
         return this.#shader;
+      }
+
+      get uniforms() {
+        return this.#uniforms;
       }
 
       constructor({ gpu, vertexShader, fragmentShader, uniforms, primitiveType }) {
@@ -493,12 +502,25 @@
       }
     }
 
+    const createWhite1x1 = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1;
+      canvas.height = 1;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 1, 1);
+      return canvas;
+    };
+
+    // TODO: gl系の処理をgpuに移してもいいかもしれない
     class Renderer {
       #renderTarget;
       #gpu; 
+      #dummyTexture;
 
       constructor({ gpu }) {
         this.#gpu = gpu;
+        this.#dummyTexture = createWhite1x1();
       }
 
       setRenderTarget(renderTarget) {
@@ -526,11 +548,49 @@
         for(let i = 0; i < meshes.length; i++)  {
           const mesh = meshes[i];
           const { material, geometry } = mesh;
+          const { uniforms } = material;
           const program = material.shader.getGLObject();
           const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
           const indices = geometry.indices;
           gl.useProgram(program);
           gl.bindVertexArray(vertexArrayObject);
+
+          // init textures
+          let activeTextureIndex = 0;
+          // NOTE:
+          // - glから最大テクスチャ割当可能数を取得して動的に設定してもよい
+          // - 連番なので列挙しなくてもよい
+          const textureUnits = [
+            gl.TEXTURE0,
+            gl.TEXTURE1,
+            gl.TEXTURE2,
+            gl.TEXTURE3,
+            gl.TEXTURE4,
+            gl.TEXTURE5,
+            gl.TEXTURE6,
+            gl.TEXTURE7,
+          ];
+
+          const uniformsKeys = Object.keys(uniforms);
+          for(let i = 0; i < uniformsKeys.length; i++) {
+            const name = uniformsKeys[i];
+            const { type, data } = uniforms[name];
+            const location = gl.getUniformLocation(program, name);
+            switch(type) {
+              case Material.UniformType.Texture2D:
+                const texture = data || this.dummyTexture;
+                gl.activeTexture(textureUnits[activeTextureIndex]);
+                gl.bindTexture(
+                  gl.TEXTURE_2D,
+                  texture.getGLObject()
+                );
+                gl.uniform1i(location, activeTextureIndex);
+                activeTextureIndex++;
+                break;
+              default:
+                throw "invalid uniform type";
+            }
+          }
           
           let primitiveType = null;
           switch(mesh.material.primitiveType) {
@@ -569,6 +629,10 @@
       const gpu = new GPU({
         canvas,
       });
+      
+      const renderer = new Renderer({ gpu });
+
+      const renderTarget = new RenderTarget({ gpu });
 
       const fullQuadVertexShaderText = `#version 300 es
         layout(location = 0) in vec3 aPosition;
@@ -584,8 +648,11 @@
         precision mediump float;
         in vec2 vUv;
         out vec4 outColor;
+        uniform sampler2D uSceneTexture;
         void main() {
-          outColor = vec4(vUv, 0., 1.);
+          vec4 sceneColor = texture(uSceneTexture, vUv);
+          outColor = sceneColor;
+          // outColor = vec4(vUv, 0., 1.);
         }
       `;
 
@@ -593,7 +660,12 @@
         gpu,
         vertexShader: fullQuadVertexShaderText,
         fragmentShader: fullQuadFragmentShaderText,
-        uniforms: {},
+        uniforms: {
+          uSceneTexture: {
+            type: Material.UniformType.Texture2D,
+            data: renderTarget.texture
+          }
+        },
         primitiveType: Material.PrimitiveType.Triangles
       });
 
@@ -682,10 +754,6 @@
         geometry: pointGeoemtry,
       });
 
-      const renderer = new Renderer({ gpu });
-
-      const renderTarget = new RenderTarget({ gpu });
-
       const setSize = () => {
         renderTarget.setSize(sceneWidth, sceneHeight);
       }
@@ -693,8 +761,8 @@
       const tick = (time) => {
         renderer.clear();
         renderer.setRenderTarget(renderTarget);
-        // renderer.render({ meshes: [ pointMesh ]});
-        // renderer.clearRenderTarget();
+        renderer.render({ meshes: [ pointMesh ]});
+        renderer.clearRenderTarget();
         renderer.render({ meshes: [ fullQuadMesh ]});
         requestAnimationFrame(tick);
       }
