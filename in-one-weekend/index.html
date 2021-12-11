@@ -19,9 +19,150 @@
   <canvas class="js-canvas"></canvas>
 
   <script>
+    // ---------------------------------------------------------------------------
+    // constants
+    // ---------------------------------------------------------------------------
+
     const CANVAS_WIDTH = 200;
     const CANVAS_HEIGHT = 200;
     const DRAW_POINT_NUM = 128;
+
+    // ---------------------------------------------------------------------------
+    // utilities
+    // ---------------------------------------------------------------------------
+
+    class FunctionWorker extends Worker {
+        constructor(src) {
+            const match = src.toString().match(/^.*\{.*\}$/gi);
+
+            const str = src.toString()
+                .replace(/^.*{.*/, "")
+                .replace(/.*\}$/, "")
+                .replace(/^\n\s*/, "")
+                .replace(/\n$/, "");
+
+            // for debug
+            // console.log(str)
+
+            const blobUrl = window.URL.createObjectURL(new Blob([str]));
+
+            super(blobUrl);
+        }
+    }
+
+    class Vector3 {
+      #elements;
+
+      get x() {
+        return this.#elements[0];
+      }
+
+      get y() {
+        return this.#elements[1];
+      }
+
+      get z() {
+        return this.#elements[2];
+      }
+
+      constructor(...args) {
+        this.#elements[0] = args[0] || 0;
+        this.#elements[1] = args[1] || 0;
+        this.#elements[2] = args[2] || 0;
+        return this;
+      }
+
+      add(v) {
+        this.x += v.x;
+        this.y += v.y;
+        this.z += v.z;
+        return this;
+      }
+
+      sub(v) {
+        this.x -= v.x;
+        this.y -= v.y;
+        this.z -= v.z;
+        return this;
+      }
+
+      mul(v) {
+        this.x *= v.x;
+        this.y *= v.y;
+        this.z *= v.z;
+        return this;
+      }
+
+      mulScalar(s) {
+        this.x *= s;
+        this.y *= s;
+        this.z *= s;
+        return this;
+      }
+
+      div(v) {
+        this.x /= v.x;
+        this.y /= v.y;
+        this.z /= v.z;
+        return this;
+      }
+
+      length() {
+        return Math.sqrt(this.lengthSquared());
+      }
+
+      lengthSquared() {
+        return this.x * this.x + this.y * this.y + this.z * this.z;
+      }
+
+      clone(v) {
+        return new Vector3(v.x, v.y, v.z);
+      }
+
+      normalize() {
+        const len = this.length();
+        this.x /= len;
+        this.y /= len;
+        this.z /= len;
+        return this;
+      }
+
+      static addVectors(a, b) {
+        return new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
+      }
+
+      static subVectors(a, b) {
+        return new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
+      }
+
+      static mulVectors(a, b) {
+        return new Vector3(a.x * b.x, a.y * b.y, a.z * b.z);
+      }
+
+      static mulVectorScalar(v, s) {
+        return new Vector3(v.x * s, v.y * s, v.z * s);
+      }
+
+      static divVectors(a, b) {
+        return new Vector3(a.x / b.x, a.y / b.y, a.z / b.z);
+      }
+
+      static dotVectors(a, b) {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+      }
+
+      static crossVectors(a, b) {
+        return new Vector3(
+          a.y * b.z - a.z * b.y,
+          a.z * b.x - a.x * b.z,
+          a.x * b.y - a.y * b.x
+        );
+      }
+    }
+
+    // ---------------------------------------------------------------------------
+    // GL
+    // ---------------------------------------------------------------------------
 
     class AbstractGLObject {
       #gpu
@@ -694,6 +835,10 @@
         gl.flush();
       }
     }
+
+    // ---------------------------------------------------------------------------
+    // main
+    // ---------------------------------------------------------------------------
 
     const main = () => {
       const canvas = document.querySelector(".js-canvas");
