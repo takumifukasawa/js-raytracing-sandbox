@@ -717,7 +717,6 @@
           width: 1,
           height: 1,
           mipmap: false,
-          flipY: true,
         });
 
         gl.framebufferTexture2D(
@@ -775,8 +774,8 @@
 
     // TODO: gl系の処理をgpuに移してもいいかもしれない
     class Renderer {
-      #renderTarget;
       #gpu; 
+      #renderTarget;
       #dummyTexture;
 
       constructor({ gpu }) {
@@ -935,22 +934,23 @@
         primitiveType: Material.PrimitiveType.Triangles
       });
 
-      // 0 -------- 3
-      // |          |
-      // |          |
-      // |          |
-      // |          |
-      // 1 -------- 2
+      // 3 ----- 2
+      // |     / |
+      // |    /  |
+      // |   /   |
+      // |  /    |
+      // | /     |
+      // 0 ----- 1
       const fullQuadGeometry = new Geometry({
         gpu,
         attributes: [
           {
             name: 'position',
             data: [
-              -1.0, 1.0, 0.0,                
               -1.0, -1.0, 0.0,                
               1.0, -1.0, 0.0,                
               1.0, 1.0, 0.0,                
+              -1.0, 1.0, 0.0,                
             ],
             stride: 3
           },
@@ -958,9 +958,9 @@
             name: 'uv',
             data: [
               0.0, 0.0,
-              0.0, 1.0,
-              1.0, 1.0,
               1.0, 0.0,
+              1.0, 1.0,
+              0.0, 1.0,
             ],
             stride: 2
           },
