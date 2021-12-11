@@ -25,7 +25,7 @@
 
     const CANVAS_WIDTH = 200;
     const CANVAS_HEIGHT = 200;
-    const DRAW_POINT_NUM = 128;
+    const DRAW_POINT_NUM = 512;
 
     // ---------------------------------------------------------------------------
     // utilities
@@ -51,7 +51,7 @@
     }
 
     class Vector3 {
-      #elements;
+      #elements = [];
 
       get x() {
         return this.#elements[0];
@@ -63,6 +63,22 @@
 
       get z() {
         return this.#elements[2];
+      }
+
+      set x(value) {
+        this.#elements[0] = value;
+      }
+
+      set y(value) {
+        this.#elements[1] = value;
+      }
+
+      set z(value) {
+        this.#elements[2] = value;
+      }
+
+      get elements() {
+        return this.#elements;
       }
 
       constructor(...args) {
@@ -899,7 +915,8 @@
         out vec4 outColor;
         uniform sampler2D uSceneTexture;
         void main() {
-          vec4 sceneColor = texture(uSceneTexture, vUv);
+          vec2 uv = vUv.xy;
+          vec4 sceneColor = texture(uSceneTexture, uv);
           outColor = sceneColor;
           // outColor = vec4(vUv, 0., 1.);
         }
@@ -962,7 +979,10 @@
 
       const pointVertexShaderText = `#version 300 es
         layout(location = 0) in vec3 aPosition;
+        layout(location = 1) in vec3 aColor;
+        out vec3 vColor;
         void main() {
+          vColor = vec3(aPosition.x, aPosition.y, 0);
           gl_Position = vec4(aPosition, 1);
           gl_PointSize = 1.0;
         }
@@ -970,9 +990,10 @@
 
       const pointFragmentShaderText = `#version 300 es
         precision mediump float;
+        in vec3 vColor;
         out vec4 outColor;
         void main() {
-          outColor = vec4(1, 0, 0, 1);
+          outColor = vec4(vColor, 1);
         }
       `;
 
@@ -995,6 +1016,18 @@
             ])).flat(),
             stride: 3,
             usage: GPU.VertexUsageType.DynamicDraw
+          },
+          {
+            name: 'color',
+            data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+              // fill black
+              // 0, 0, 0
+              Math.random(),
+              Math.random(),
+              Math.random(),
+            ])).flat(),
+            stride: 3,
+            usage: GPU.VertexUsageType.DynamicDraw
           }
         ]
       });
@@ -1004,25 +1037,42 @@
         geometry: pointGeometry,
       });
 
+      const getRayColor = (ray) => {
+        const rayDir = ray.direction.normalize();
+        return new Vector3(rayDir.x, rayDir.y, 0);
+        // const t = 0.5 * (rayDir.y + 1.0);
+        // return new Vector3(1.0, 1.0, 1.0)
+        //   .mulScalar(1.0 - t)
+        //   .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
+      }
+
       const setSize = () => {
         renderTarget.setSize(sceneWidth, sceneHeight);
       }
 
       const tick = (time) => {
-        pointGeometry.updateAttribute(
-          'position', 
-          ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
-            Math.random() * 2 - 1,
-            Math.random() * 2 - 1,
-            0
-          ])).flat()
-        );
+        const newPoints = ([...new Array(DRAW_POINT_NUM)].map((_, i) => {
+            const x = Math.random() * 2 - 1;
+            const y = Math.random() * 2 - 1;
+            const z = 1;
+            return [x, y, z]
+         }));
+        const newColors = newPoints.map(p => {
+            const origin = new Vector3(0, 0, 0);
+            const direction = new Vector3(0, 0, 1);
+            const ray = new Ray(origin, direction.add(new Vector3(p[0], p[1], 0)));
+            const color = getRayColor(ray);
+            return color.elements;
+        });
+        pointGeometry.updateAttribute('position', newPoints.flat());
+        pointGeometry.updateAttribute('color', newColors.flat());
  
         renderer.clear();
         renderer.setRenderTarget(renderTarget);
         renderer.render({ meshes: [ pointMesh ]});
         renderer.unsetRenderTarget();
         renderer.render({ meshes: [ fullQuadMesh ]});
+
         requestAnimationFrame(tick);
       }
 
