@@ -23,8 +23,8 @@
     // constants
     // ---------------------------------------------------------------------------
 
-    const CANVAS_WIDTH = 200;
-    const CANVAS_HEIGHT = 200;
+    const CANVAS_WIDTH = 320;
+    const CANVAS_HEIGHT = 180;
     const DRAW_POINT_NUM = 512;
 
     // ---------------------------------------------------------------------------
@@ -982,7 +982,7 @@
         layout(location = 1) in vec3 aColor;
         out vec3 vColor;
         void main() {
-          vColor = vec3(aPosition.x, aPosition.y, 0);
+          vColor = aColor;
           gl_Position = vec4(aPosition, 1);
           gl_PointSize = 1.0;
         }
@@ -1039,11 +1039,10 @@
 
       const getRayColor = (ray) => {
         const rayDir = ray.direction.normalize();
-        return new Vector3(rayDir.x, rayDir.y, 0);
-        // const t = 0.5 * (rayDir.y + 1.0);
-        // return new Vector3(1.0, 1.0, 1.0)
-        //   .mulScalar(1.0 - t)
-        //   .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
+        const t = 0.5 * (rayDir.y + 1.0);
+        return new Vector3(1.0, 1.0, 1.0)
+          .mulScalar(1.0 - t)
+          .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
       }
 
       const setSize = () => {
@@ -1056,11 +1055,14 @@
             const y = Math.random() * 2 - 1;
             const z = 1;
             return [x, y, z]
-         }));
+        }));
+        const h = 1.0;
+        const aspect = sceneWidth / sceneHeight;
+        const w = aspect * h;
         const newColors = newPoints.map(p => {
             const origin = new Vector3(0, 0, 0);
             const direction = new Vector3(0, 0, 1);
-            const ray = new Ray(origin, direction.add(new Vector3(p[0], p[1], 0)));
+            const ray = new Ray(origin, direction.add(new Vector3(p[0] * w, p[1] * h, 0)));
             const color = getRayColor(ray);
             return color.elements;
         });
