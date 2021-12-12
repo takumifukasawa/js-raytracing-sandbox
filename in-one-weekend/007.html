@@ -218,7 +218,26 @@
       }
       
       static copy(v) {
-        return new Vector3(v.x, v.y, v.z);
+        return v.clone();
+      }
+
+      static random(min, max) {
+        return new Vector3(
+          MathUtilities.getRandomRange(min, max),
+          MathUtilities.getRandomRange(min, max),
+          MathUtilities.getRandomRange(min, max)
+        );
+      }
+
+      static randomInUnitSphere() {
+        const r = Math.cbrt(Math.random());
+        const cosTheta = Math.random() * 2 - 1;
+        const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
+        const phi = Math.random() * 2 * Math.PI;
+        const x = r * sinTheta * Math.cos(phi);
+        const y = r * sinTheta * Math.sin(phi);
+        const z = r * cosTheta;
+        return new Vector3(x, y, z);
       }
     }
   </script>
@@ -1093,7 +1112,8 @@
             pointNum: DRAW_POINT_NUM,
             width: sceneWidth,
             height: sceneHeight,
-            sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL
+            sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL,
+            maxRayDepth: MAX_RAY_DEPTH
           }
         }
 
@@ -1316,7 +1336,8 @@
         pointNum,
         width,
         height,
-        sampleNumPerPixel
+        sampleNumPerPixel,
+        maxRayDepth
       }] = e.data;
 
       const camera = new Camera();
@@ -1324,14 +1345,22 @@
       camera.direction = new Vector3(0, 0, -1);
       camera.setSize(width, height);
 
-      const world = new HittableList();
-      world.add(new Sphere(new Vector3(0, 0, 0), 0.5));
-      world.add(new Sphere(new Vector3(0, -100.5, 0), 100))
-
-      const getRayColor = (ray) => {
+      const getRayColor = (ray, world, depth) => {
+        if(depth <= 0) {
+          return Vector3.zero;
+        }
         const hitInfo = world.hit(ray, 0.0001, 10000);
         if(hitInfo) {
-          return Vector3.addVectors(hitInfo.normal, Vector3.one).mulScalar(0.5);
+          const target = Vector3.zero
+            .add(hitInfo.position)
+            .add(hitInfo.normal)
+            .add(Vector3.randomInUnitSphere())
+            .mulScalar(0.5)
+          return getRayColor(
+            new Ray(hitInfo.position, Vector3.subVectors(target, hitInfo.position)),
+            world,
+            depth - 1
+          );
         }
         const rayDir = ray.direction.normalize();
         t = 0.5 * (rayDir.y + 1.0);
@@ -1339,6 +1368,10 @@
           .mulScalar(1.0 - t)
           .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
       }
+
+      const world = new HittableList();
+      world.add(new Sphere(new Vector3(0, 0, 0), 0.5));
+      world.add(new Sphere(new Vector3(0, -100.5, 0), 100))
 
       const positions = ([...new Array(pointNum)].map((_, i) => {
         // ピクセル座標
@@ -1361,16 +1394,16 @@
       const colors = positions.map(p => {
         const x = p[0];
         const y = p[1];
-        const accColor = [...new Array(sampleNumPerPixel)].reduce((prev, current, i) => {
+        const accColor = Vector3.zero;
+        for(let i = 0; i < sampleNumPerPixel; i++) {
           const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
           const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
           const ray = camera.getRay(x + addX, y + addY);
-          const color = getRayColor(ray);
-          prev.x += color.x;
-          prev.y += color.y;
-          prev.z += color.z;
-          return prev;
-        }, Vector3.zero);
+          const currentColor = getRayColor(ray, world, maxRayDepth);
+          accColor.x += currentColor.x;
+          accColor.y += currentColor.y;
+          accColor.z += currentColor.z;
+        }
         const color = accColor.divScalar(sampleNumPerPixel);
         return color.elements;
       });
@@ -1382,9 +1415,10 @@
   <script>
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 512;
-    const SAMPLE_NUM_PER_PIXEL = 16;
+    const DRAW_POINT_NUM = 256;
+    const SAMPLE_NUM_PER_PIXEL = 8;
     const MAX_WORKER_NUM = 4;
+    const MAX_RAY_DEPTH = 16;
 
     const canvas = document.querySelector(".js-canvas");
 
