@@ -1093,11 +1093,11 @@
             pointNum: DRAW_POINT_NUM,
             width: sceneWidth,
             height: sceneHeight,
+            sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL
           }
         }
 
-        const threadNum = Math.min(4, window.navigator.hardwareConcurrency);
-        // const threadNum = 1;
+        const threadNum = Math.min(MAX_WORKER_NUM, window.navigator.hardwareConcurrency);
 
         for(let i = 0; i < threadNum; i++) {
           const worker = new Worker(blobUrl);
@@ -1316,6 +1316,7 @@
         pointNum,
         width,
         height,
+        sampleNumPerPixel
       }] = e.data;
 
       const camera = new Camera();
@@ -1360,7 +1361,6 @@
       const colors = positions.map(p => {
         const x = p[0];
         const y = p[1];
-        const sampleNumPerPixel = 16;
         const accColor = [...new Array(sampleNumPerPixel)].reduce((prev, current, i) => {
           const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
           const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
@@ -1383,6 +1383,8 @@
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
     const DRAW_POINT_NUM = 512;
+    const SAMPLE_NUM_PER_PIXEL = 16;
+    const MAX_WORKER_NUM = 4;
 
     const canvas = document.querySelector(".js-canvas");
 
