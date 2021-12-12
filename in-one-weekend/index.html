@@ -125,6 +125,13 @@
         return this;
       }
 
+      divScalar(s) {
+        this.x /= s;
+        this.y /= s;
+        this.z /= s;
+        return this;
+      }
+
       length() {
         return Math.sqrt(this.lengthSquared());
       }
@@ -212,7 +219,7 @@
     }
   </script>
 
-  <script id="gl-script">
+  <script id="webgl-script">
     class AbstractGLObject {
       #gpu
 
@@ -1030,8 +1037,15 @@
         // 本当は外から渡したい
         const librariesScript = document.querySelector("#libraries-script").textContent;
         const workerScript = document.querySelector("#worker-script").textContent;
+        const webglScript = document.querySelector("#webgl-script").textContent;
+        const raytracingScript = document.querySelector("#raytracing-script").textContent;
 
-        const scriptBlob = new Blob([workerScript, librariesScript]);
+        const scriptBlob = new Blob([
+          workerScript,
+          librariesScript,
+          webglScript,
+          raytracingScript,
+        ]);
         const blobUrl = window.URL.createObjectURL(scriptBlob);
 
         const buildWorkerArgs = () => {
@@ -1055,6 +1069,7 @@
 
             // 負荷対策でちょっと間引く
             await new Wait(1000 / 60).exec();
+            // await new Wait(1000).exec();
 
             const workerArgs = buildWorkerArgs();
 
@@ -1085,6 +1100,83 @@
         this.#renderer.render({ meshes: [ this.#fullQuadMesh ]});
       }
     }
+
+    class AbstractHittableObject {
+      constructor() {}
+
+      hit(ray, tMin, tMax) {
+        throw 'implement method.'
+      }
+    }
+
+    class Sphere extends AbstractHittableObject {
+      #center;
+      #radius;
+      
+      get center() {
+        return this.#center;
+      }
+
+      get radius() {
+        return this.#radius;
+      }
+
+      constructor(center, radius) {
+        super();
+        this.#center = center;
+        this.#radius = radius;
+      }
+
+      hit(ray, tMin, tMax) {
+        /*
+         * x^2 + y^2 + z^2 = r^2;
+         *
+         * // 中心位置をcx,cy,czとすると
+         * (x - cx)^2 + (y - cy)^2 + (z - cz)^2 = r^2
+         *
+         * // 位置をx,y,zとすると
+         * (px - cx)^2 + (pz - cy)^2 + (pz - cz)^2 = r^2
+         * a: (p - c)^2 = r^2
+         *
+         * // rayの方程式
+         * p(t) = o + td;
+         *
+         * // a に代入
+         * (p(t) - c)^2 = r^2
+         * (o + td - c)^2 = r^2
+         *
+         * oc = o - cとすると
+         * (oc + td)^2 = r^2
+         * (oc + td)^2 - r^2 = 0
+         *
+         * tについて展開
+         * (d*d)t^2 + 2(d + oc)t + (oc)^2 - r^2 = 0
+         *
+         * ax^2 + bx + c = 0 の二次方程式に判別式Dを当てはめると、
+         *
+         * D = b^2 - 4ac
+         * a = (d dot d)
+         * b = 2 * (d dot oc)
+         * c = (oc dot oc) - r^2
+         *
+         */
+        const oc = Vector3.subVectors(ray.origin, this.#center);
+        const a = Vector3.dotVectors(ray.direction, ray.direction);
+        const b = 2.0 * Vector3.dotVectors(oc, ray.direction);
+        const c = Vector3.dotVectors(oc, oc) - this.#radius * this.#radius;
+        const discriminant = b * b - 4 * a * c;
+
+        if(discriminant < 0) {
+          return null;
+        } else {
+          // 2次方程式の解。交点が2つある場合は近い方の点
+          const t = (-b - Math.sqrt(discriminant)) / (2.0 * a);
+          const p = ray.at(t);
+          const normal = Vector3.subVectors(p, this.#center).divScalar(this.#radius);
+          return { t, p, normal };
+        }
+      }
+    }
   </script>
 
   <script id="worker-script">
@@ -1095,59 +1187,12 @@
         height,
       }] = e.data;
 
-      /*
-       * x^2 + y^2 + z^2 = r^2;
-       *
-       * // 中心位置をcx,cy,czとすると
-       * (x - cx)^2 + (y - cy)^2 + (z - cz)^2 = r^2
-       *
-       * // 位置をx,y,zとすると
-       * (px - cx)^2 + (pz - cy)^2 + (pz - cz)^2 = r^2
-       * a: (p - c)^2 = r^2
-       *
-       * // rayの方程式
-       * p(t) = o + td;
-       *
-       * // a に代入
-       * (p(t) - c)^2 = r^2
-       * (o + td - c)^2 = r^2
-       *
-       * oc = o - cとすると
-       * (oc + td)^2 = r^2
-       * (oc + td)^2 - r^2 = 0
-       *
-       * tについて展開
-       * (d*d)t^2 + 2(d + oc)t + (oc)^2 - r^2 = 0
-       *
-       * ax^2 + bx + c = 0 の二次方程式に判別式Dを当てはめると、
-       *
-       * D = b^2 - 4ac
-       * a = (d dot d)
-       * b = 2 * (d dot oc)
-       * c = (oc dot oc) - r^2
-       *
-       */
-      const hitSphere = (center, radius, ray) => {
-        const oc = Vector3.subVectors(ray.origin, center);
-        const a = Vector3.dotVectors(ray.direction, ray.direction);
-        const b = 2.0 * Vector3.dotVectors(oc, ray.direction);
-        const c = Vector3.dotVectors(oc, oc) - radius * radius;
-        const discriminant = b * b - 4 * a * c;
-        if(discriminant < 0) {
-          return -1.0;
-        } else {
-          // 2次方程式の解。交点が2つある場合は近い方の点
-          return (-b - Math.sqrt(discriminant)) / (2.0 * a);
-        }
-      }
+      const sphere = new Sphere(new Vector3(0, 0, 0), 0.5);
 
       const getRayColor = (ray) => {
-        const sphereCenter = new Vector3(0, 0, 0); 
-        let t = hitSphere(sphereCenter, 0.5, ray);
-        if(t > 0) {
-          const hitPoint = ray.at(t);
-          const normal = Vector3.subVectors(hitPoint, sphereCenter).normalize();
-          return normal.mulScalar(0.5).add(new Vector3(0.5, 0.5, 0.5));
+        let hit = sphere.hit(ray, 0.0001, 10000);
+        if(hit) {
+          return hit.normal.mulScalar(0.5).add(new Vector3(0.5, 0.5, 0.5));
         }
         const rayDir = ray.direction.normalize();
         t = 0.5 * (rayDir.y + 1.0);
