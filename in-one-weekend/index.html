@@ -145,6 +145,14 @@
         return this;
       }
 
+      static get zero() {
+        return new Vector3(0, 0, 0);
+      }
+
+      static get one() {
+        return new Vector3(1, 1, 1);
+      }
+
       static addVectors(a, b) {
         return new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
       }
@@ -196,7 +204,10 @@
       }
 
       at(t) {
-        return this.#origin + this.#direction.mul(t);
+        return Vector3.addVectors(
+          this.#origin,
+          Vector3.mulVectorScalar(this.#direction, t)
+        );
       }
     }
   </script>
@@ -917,20 +928,29 @@
        *
        */
       const hitSphere = (center, radius, ray) => {
-        const oc = ray.origin.sub(center);
+        const oc = Vector3.subVectors(ray.origin, center);
         const a = Vector3.dotVectors(ray.direction, ray.direction);
         const b = 2.0 * Vector3.dotVectors(oc, ray.direction);
         const c = Vector3.dotVectors(oc, oc) - radius * radius;
         const discriminant = b * b - 4 * a * c;
-        return discriminant > 0;
+        if(discriminant < 0) {
+          return -1.0;
+        } else {
+          // 2次方程式の解。交点が2つある場合は近い方の点
+          return (-b - Math.sqrt(discriminant)) / (2.0 * a);
+        }
       }
 
       const getRayColor = (ray) => {
-        if(hitSphere(new Vector3(0, 0, -1), 0.5, ray)) {
-          return new Vector3(1, 0, 0);
+        const sphereCenter = new Vector3(0, 0, 0); 
+        let t = hitSphere(sphereCenter, 0.5, ray);
+        if(t > 0) {
+          const hitPoint = ray.at(t);
+          const normal = Vector3.subVectors(hitPoint, sphereCenter).normalize();
+          return normal.mulScalar(0.5).add(new Vector3(0.5, 0.5, 0.5));
         }
         const rayDir = ray.direction.normalize();
-        const t = 0.5 * (rayDir.y + 1.0);
+        t = 0.5 * (rayDir.y + 1.0);
         return new Vector3(1.0, 1.0, 1.0)
           .mulScalar(1.0 - t)
           .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
@@ -946,8 +966,8 @@
       const aspect = width / height;
       const w = aspect * h;
       const colors = positions.map(p => {
-          const origin = new Vector3(0, 0, 0);
-          const direction = new Vector3(0, 0, 1);
+          const origin = new Vector3(0, 0, 1);
+          const direction = new Vector3(0, 0, -1);
           const ray = new Ray(origin, direction.add(new Vector3(p[0] * w, p[1] * h, 0)));
           const color = getRayColor(ray);
           return color.elements;
@@ -1123,7 +1143,7 @@
       }
     }
 
-    const threadNum = window.navigator.hardwareConcurrency;
+    const threadNum = Math.min(4, window.navigator.hardwareConcurrency);
     // const threadNum = 1;
 
     for(let i = 0; i < threadNum; i++) {
@@ -1133,6 +1153,9 @@
         const [{ positions, colors }] = e.data;
         pointGeometry.updateAttribute('position', positions.flat());
         pointGeometry.updateAttribute('color', colors.flat());
+
+        // 負荷対策でちょっと間引く
+        await new Wait(1000 / 60).exec();
 
         const workerArgs = buildWorkerArgs();
 
