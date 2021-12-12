@@ -165,8 +165,8 @@
         return this.x * this.x + this.y * this.y + this.z * this.z;
       }
 
-      clone(v) {
-        return new Vector3(v.x, v.y, v.z);
+      clone() {
+        return new Vector3(this.x, this.y, this.z);
       }
 
       normalize() {
@@ -215,6 +215,10 @@
           a.z * b.x - a.x * b.z,
           a.x * b.y - a.y * b.x
         );
+      }
+      
+      static copy(v) {
+        return new Vector3(v.x, v.y, v.z);
       }
     }
   </script>
@@ -923,14 +927,11 @@
       }
 
       getRay(x, y) {
-        const h = 1.0;
+        const h = 1;
         const w = this.#aspect * h;
         const ray = new Ray(
           this.position,
-          Vector3.addVectors(
-            this.direction,
-            new Vector3(x * w, y * h, 0)
-          )
+          new Vector3(w * x, h * y, 0).add(this.direction.clone())
         );
         return ray;
       }
@@ -1338,12 +1339,13 @@
           .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
       }
 
-      const stepX = 1 / width;
-      const stepY = 1 / height;
-
       const positions = ([...new Array(pointNum)].map((_, i) => {
-        const x = Math.floor(MathUtilities.getRandomRange(width * -1, width)) * stepX;
-        const y = Math.floor(MathUtilities.getRandomRange(height * -1, height)) * stepY;
+        // ピクセル座標
+        const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
+        const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
+        // -1 ~ 1 に直す
+        const x = (px / width) * 2 - 1;
+        const y = (py / height) * 2 - 1;
         const z = 0;
         return [
           x,
@@ -1352,10 +1354,13 @@
         ];
       }));
 
+      const stepX = 1 / width;
+      const stepY = 1 / height;
+
       const colors = positions.map(p => {
         const x = p[0];
         const y = p[1];
-        const sampleNumPerPixel = 16;
+        const sampleNumPerPixel = 4;
         const accColor = [...new Array(sampleNumPerPixel)].reduce((prev, current, i) => {
           const addX = Math.random() * stepX;
           const addY = Math.random() * stepY;
