@@ -887,6 +887,205 @@
 
   </script>
 
+  <script id="raytracing-script">
+    class RaytraceRenderer {
+      #renderer;
+      #renderTarget;
+      #pointMesh;
+      #fullQuadMesh;
+
+      constructor({ gpu }) {
+        this.#renderer = new Renderer({ gpu });
+        this.#renderTarget = new RenderTarget({ gpu });
+
+        const fullQuadVertexShaderText = `#version 300 es
+          layout(location = 0) in vec3 aPosition;
+          layout(location = 1) in vec2 aUv;
+          out vec2 vUv;
+          void main() {
+            vUv = aUv;
+            gl_Position = vec4(aPosition, 1.);
+          }
+        `;
+
+        const fullQuadFragmentShaderText = `#version 300 es
+          precision mediump float;
+          in vec2 vUv;
+          out vec4 outColor;
+          uniform sampler2D uSceneTexture;
+          void main() {
+            vec2 uv = vUv.xy;
+            vec4 sceneColor = texture(uSceneTexture, uv);
+            outColor = sceneColor;
+            // outColor = vec4(vUv, 0., 1.);
+          }
+        `;
+
+        const fullQuadMaterial = new Material({
+          gpu,
+          vertexShader: fullQuadVertexShaderText,
+          fragmentShader: fullQuadFragmentShaderText,
+          uniforms: {
+            uSceneTexture: {
+              type: Material.UniformType.Texture2D,
+              data: this.#renderTarget.texture
+            }
+          },
+          primitiveType: Material.PrimitiveType.Triangles
+        });
+
+        // 3 ----- 2
+        // |     / |
+        // |    /  |
+        // |   /   |
+        // |  /    |
+        // | /     |
+        // 0 ----- 1
+        const fullQuadGeometry = new Geometry({
+          gpu,
+          attributes: [
+            {
+              name: 'position',
+              data: [
+                -1.0, -1.0, 0.0,                
+                1.0, -1.0, 0.0,                
+                1.0, 1.0, 0.0,                
+                -1.0, 1.0, 0.0,                
+              ],
+              stride: 3
+            },
+            {
+              name: 'uv',
+              data: [
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+              ],
+              stride: 2
+            },
+          ],
+          indices: [
+            0, 1, 2,
+            2, 3, 0
+          ]
+        });
+
+        this.#fullQuadMesh = new Mesh({
+          material: fullQuadMaterial,
+          geometry: fullQuadGeometry,
+        });
+
+        const pointVertexShaderText = `#version 300 es
+          layout(location = 0) in vec3 aPosition;
+          layout(location = 1) in vec3 aColor;
+          out vec3 vColor;
+          void main() {
+            vColor = aColor;
+            gl_Position = vec4(aPosition, 1);
+            gl_PointSize = 1.0;
+          }
+        `;
+
+        const pointFragmentShaderText = `#version 300 es
+          precision mediump float;
+          in vec3 vColor;
+          out vec4 outColor;
+          void main() {
+            outColor = vec4(vColor, 1);
+          }
+        `;
+
+        const pointMaterial = new Material({
+          gpu,
+          vertexShader: pointVertexShaderText,
+          fragmentShader: pointFragmentShaderText,
+          uniforms: {},
+          primitiveType: Material.PrimitiveType.Points });
+
+        const pointGeometry = new Geometry({
+          gpu,
+          attributes: [
+            {
+              name: 'position',
+              data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+                Math.random() * 2 - 1,
+                Math.random() * 2 - 1,
+                0
+              ])).flat(),
+              stride: 3,
+              usage: GPU.VertexUsageType.DynamicDraw
+            },
+            {
+              name: 'color',
+              data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+                0, 0, 0
+              ])).flat(),
+              stride: 3,
+              usage: GPU.VertexUsageType.DynamicDraw
+            }
+          ]
+        });
+
+        const librariesScript = document.querySelector("#libraries-script").textContent;
+        const workerScript = document.querySelector("#worker-script").textContent;
+
+        const scriptBlob = new Blob([workerScript, librariesScript]);
+        const blobUrl = window.URL.createObjectURL(scriptBlob);
+
+        const buildWorkerArgs = () => {
+          return {
+            pointNum: DRAW_POINT_NUM,
+            width: sceneWidth,
+            height: sceneHeight,
+          }
+        }
+
+        const threadNum = Math.min(4, window.navigator.hardwareConcurrency);
+        // const threadNum = 1;
+
+        for(let i = 0; i < threadNum; i++) {
+          const worker = new Worker(blobUrl);
+
+          worker.onmessage = async (e) => {
+            const [{ positions, colors }] = e.data;
+            pointGeometry.updateAttribute('position', positions.flat());
+            pointGeometry.updateAttribute('color', colors.flat());
+
+            // 負荷対策でちょっと間引く
+            await new Wait(1000 / 60).exec();
+
+            const workerArgs = buildWorkerArgs();
+
+            worker.postMessage([buildWorkerArgs()]);
+          };
+
+          worker.onerror = (e) => {
+            console.error(e);
+          }
+          worker.postMessage([buildWorkerArgs()]);
+        }
+
+        this.#pointMesh = new Mesh({
+          material: pointMaterial,
+          geometry: pointGeometry,
+        });
+      }
+
+      setSize(width, height) {
+        this.#renderTarget.setSize(width, height);
+      }
+
+      render() {
+        this.#renderer.clear();
+        this.#renderer.setRenderTarget(this.#renderTarget);
+        this.#renderer.render({ meshes: [ this.#pointMesh ]});
+        this.#renderer.unsetRenderTarget();
+        this.#renderer.render({ meshes: [ this.#fullQuadMesh ]});
+      }
+    }
+  </script>
+
   <script id="worker-script">
     self.onmessage = (e) => {
       const [{
@@ -992,202 +1191,20 @@
     const gpu = new GPU({
       canvas,
     });
+
+    const renderer = new RaytraceRenderer({ gpu });
     
-    const renderer = new Renderer({ gpu });
-
-    const renderTarget = new RenderTarget({ gpu });
-
-    const fullQuadVertexShaderText = `#version 300 es
-      layout(location = 0) in vec3 aPosition;
-      layout(location = 1) in vec2 aUv;
-      out vec2 vUv;
-      void main() {
-        vUv = aUv;
-        gl_Position = vec4(aPosition, 1.);
-      }
-    `;
-
-    const fullQuadFragmentShaderText = `#version 300 es
-      precision mediump float;
-      in vec2 vUv;
-      out vec4 outColor;
-      uniform sampler2D uSceneTexture;
-      void main() {
-        vec2 uv = vUv.xy;
-        vec4 sceneColor = texture(uSceneTexture, uv);
-        outColor = sceneColor;
-        // outColor = vec4(vUv, 0., 1.);
-      }
-    `;
-
-    const fullQuadMaterial = new Material({
-      gpu,
-      vertexShader: fullQuadVertexShaderText,
-      fragmentShader: fullQuadFragmentShaderText,
-      uniforms: {
-        uSceneTexture: {
-          type: Material.UniformType.Texture2D,
-          data: renderTarget.texture
-        }
-      },
-      primitiveType: Material.PrimitiveType.Triangles
-    });
-
-    // 3 ----- 2
-    // |     / |
-    // |    /  |
-    // |   /   |
-    // |  /    |
-    // | /     |
-    // 0 ----- 1
-    const fullQuadGeometry = new Geometry({
-      gpu,
-      attributes: [
-        {
-          name: 'position',
-          data: [
-            -1.0, -1.0, 0.0,                
-            1.0, -1.0, 0.0,                
-            1.0, 1.0, 0.0,                
-            -1.0, 1.0, 0.0,                
-          ],
-          stride: 3
-        },
-        {
-          name: 'uv',
-          data: [
-            0.0, 0.0,
-            1.0, 0.0,
-            1.0, 1.0,
-            0.0, 1.0,
-          ],
-          stride: 2
-        },
-      ],
-      indices: [
-        0, 1, 2,
-        2, 3, 0
-      ]
-    });
-
-    const fullQuadMesh = new Mesh({
-      material: fullQuadMaterial,
-      geometry: fullQuadGeometry,
-    });
-
-    const pointVertexShaderText = `#version 300 es
-      layout(location = 0) in vec3 aPosition;
-      layout(location = 1) in vec3 aColor;
-      out vec3 vColor;
-      void main() {
-        vColor = aColor;
-        gl_Position = vec4(aPosition, 1);
-        gl_PointSize = 1.0;
-      }
-    `;
-
-    const pointFragmentShaderText = `#version 300 es
-      precision mediump float;
-      in vec3 vColor;
-      out vec4 outColor;
-      void main() {
-        outColor = vec4(vColor, 1);
-      }
-    `;
-
-    const pointMaterial = new Material({
-      gpu,
-      vertexShader: pointVertexShaderText,
-      fragmentShader: pointFragmentShaderText,
-      uniforms: {},
-      primitiveType: Material.PrimitiveType.Points });
-
-    const pointGeometry = new Geometry({
-      gpu,
-      attributes: [
-        {
-          name: 'position',
-          data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
-            Math.random() * 2 - 1,
-            Math.random() * 2 - 1,
-            0
-          ])).flat(),
-          stride: 3,
-          usage: GPU.VertexUsageType.DynamicDraw
-        },
-        {
-          name: 'color',
-          data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
-            // fill black
-            // 0, 0, 0
-            Math.random(),
-            Math.random(),
-            Math.random(),
-          ])).flat(),
-          stride: 3,
-          usage: GPU.VertexUsageType.DynamicDraw
-        }
-      ]
-    });
-
-    const librariesScript = document.querySelector("#libraries-script").textContent;
-    const workerScript = document.querySelector("#worker-script").textContent;
-
-    const blobUrl = window.URL.createObjectURL(new Blob([workerScript, librariesScript]));
-
-    const buildWorkerArgs = () => {
-      return {
-        pointNum: DRAW_POINT_NUM,
-        width: sceneWidth,
-        height: sceneHeight,
-      }
-    }
-
-    const threadNum = Math.min(4, window.navigator.hardwareConcurrency);
-    // const threadNum = 1;
-
-    for(let i = 0; i < threadNum; i++) {
-      const worker = new Worker(blobUrl);
-
-      worker.onmessage = async (e) => {
-        const [{ positions, colors }] = e.data;
-        pointGeometry.updateAttribute('position', positions.flat());
-        pointGeometry.updateAttribute('color', colors.flat());
-
-        // 負荷対策でちょっと間引く
-        await new Wait(1000 / 60).exec();
-
-        const workerArgs = buildWorkerArgs();
-
-        worker.postMessage([buildWorkerArgs()]);
-      };
-
-      worker.onerror = (e) => {
-        console.error(e);
-      }
-      worker.postMessage([buildWorkerArgs()]);
-    }
-
-    const pointMesh = new Mesh({
-      material: pointMaterial,
-      geometry: pointGeometry,
-    });
-
     const setSize = () => {
-      renderTarget.setSize(sceneWidth, sceneHeight);
+      renderer.setSize(sceneWidth, sceneHeight);
     }
 
     const tick = (time) => {
-      renderer.clear();
-      renderer.setRenderTarget(renderTarget);
-      renderer.render({ meshes: [ pointMesh ]});
-      renderer.unsetRenderTarget();
-      renderer.render({ meshes: [ fullQuadMesh ]});
-
+      renderer.render();
       requestAnimationFrame(tick);
     }
 
     setSize();
+    window.addEventListener('resize', () => setSize());
     requestAnimationFrame(tick);
   </script>
 </body>
