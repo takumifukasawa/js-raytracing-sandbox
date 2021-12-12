@@ -18,7 +18,22 @@
 <body>
   <canvas class="js-canvas"></canvas>
 
-  <script id="libraries-script">
+  <script id="utilities-script">
+    const createWhite1x1 = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1;
+      canvas.height = 1;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 1, 1);
+      return canvas;
+    };
+
+    const degreesToRadians = (degree) => {
+      return degree * Math.PI / 180;
+    }
+
+
     class FunctionWorker extends Worker {
       constructor(src) {
         const match = src.toString().match(/^.*\{.*\}$/gi);
@@ -776,16 +791,6 @@
       }
     }
 
-    const createWhite1x1 = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 1;
-      canvas.height = 1;
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, 1, 1);
-      return canvas;
-    };
-
     // TODO: gl系の処理をgpuに移してもいいかもしれない
     class Renderer {
       #gpu; 
@@ -890,8 +895,6 @@
         gl.flush();
       }
     }
-
-
   </script>
 
   <script id="raytracing-script">
@@ -1035,14 +1038,14 @@
         });
 
         // 本当は外から渡したい
-        const librariesScript = document.querySelector("#libraries-script").textContent;
+        const utilitiesScript = document.querySelector("#utilities-script").textContent;
         const workerScript = document.querySelector("#worker-script").textContent;
         const webglScript = document.querySelector("#webgl-script").textContent;
         const raytracingScript = document.querySelector("#raytracing-script").textContent;
 
         const scriptBlob = new Blob([
           workerScript,
-          librariesScript,
+          utilitiesScript,
           webglScript,
           raytracingScript,
         ]);
@@ -1217,7 +1220,7 @@
         const sqrtD = Math.sqrt(discriminant);
 
         // 二次方程式の解がrayの長さの最小以下・最大以上だったらヒットしていないとみなす
-        const root = (-halfB - sqrtD) / a;
+        let root = (-halfB - sqrtD) / a;
         if(root < tMin || tMax < root) {
           root = (-halfB + sqrtD) / a;
           if(root < tMin || tMax < root) {
@@ -1236,16 +1239,41 @@
     }
 
     class HittableList extends BaseHittable {
-      constructor() {
+      #hitObjects;
+      constructor(hitObjects = []) {
         super();
+        this.#hitObjects = hitObjects;
+      }
+
+      add(hittableObject) {
+        this.#hitObjects.push(hittableObject);
       }
 
       hit(ray, tMin, tMax) {
+        let isHit = false;
+        let hitInfo = null;
+        let hitDistance = tMax;
+
+        
+        for(let i = 0; i < this.#hitObjects.length; i++) {
+          const hitObject = this.#hitObjects[i];
+          let currentHitInfo = hitObject.hit(ray, tMin, hitDistance);
+          if(currentHitInfo) {
+            isHit = true;
+            hitInfo = currentHitInfo;
+            hitDistance = hitInfo.distance;
+          }
+        }
+
+        return hitInfo;
       }
     }
   </script>
 
   <script id="worker-script">
+    // TODO:
+    // - scene を trace する部分を外から渡せるように
+    // - raytracing class に移す方がたぶんよい
     self.onmessage = (e) => {
       const [{
         pointNum,
@@ -1253,12 +1281,14 @@
         height,
       }] = e.data;
 
-      const sphere = new Sphere(new Vector3(0, 0, 0), 0.5);
+      const world = new HittableList();
+      world.add(new Sphere(new Vector3(0, 0, 0), 0.5));
+      world.add(new Sphere(new Vector3(0, -100.5, 0), 100))
 
       const getRayColor = (ray) => {
-        let hit = sphere.hit(ray, 0.0001, 10000);
-        if(hit) {
-          return hit.normal.mulScalar(0.5).add(new Vector3(0.5, 0.5, 0.5));
+        const hitInfo = world.hit(ray, 0.0001, 10000);
+        if(hitInfo) {
+          return Vector3.addVectors(hitInfo.normal, Vector3.one).mulScalar(0.5);
         }
         const rayDir = ray.direction.normalize();
         t = 0.5 * (rayDir.y + 1.0);
