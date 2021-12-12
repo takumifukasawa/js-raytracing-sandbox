@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>in-one-weekend</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <canvas class="js-canvas"></canvas>
+
+  <script id="utilities-script">
+    const createWhite1x1 = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      canvas.width = 1;
+      canvas.height = 1;
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, 1, 1);
+      return canvas;
+    };
+
+    class MathUtilities {
+      static degreesToRadians (degree) {
+        return degree * Math.PI / 180;
+      }
+      static getRandomRange(min, max) {
+        return min + Math.random() * (max - min);
+      }
+      static clamp(value, min, max) {
+        return Math.min(max, Math.max(value, min));
+      }
+      static saturate(value) {
+        MathUtilities.clamp(value, 0, 1);
+      }
+    }
+
+    class FunctionWorker extends Worker {
+      constructor(src) {
+        const match = src.toString().match(/^.*\{.*\}$/gi);
+
+        const str = src.toString()
+          .replace(/^.*{.*/, "")
+          .replace(/.*\}$/, "")
+          .replace(/^\n\s*/, "")
+          .replace(/\n$/, "");
+
+        // for debug
+        // console.log(str)
+
+        const blobUrl = window.URL.createObjectURL(new Blob([str]));
+
+        super(blobUrl);
+      }
+    }
+
+    class Wait {
+      #msec
+      constructor(msec) {
+        this.#msec = msec;
+      }
+      exec() {
+        return new Promise(resolve => {
+          window.setTimeout(() => {
+            resolve();
+          }, this.#msec);
+        });
+      }
+    }
+
+    class Vector3 {
+      #elements = [];
+
+      get x() {
+        return this.#elements[0];
+      }
+
+      get y() {
+        return this.#elements[1];
+      }
+
+      get z() {
+        return this.#elements[2];
+      }
+
+      set x(value) {
+        this.#elements[0] = value;
+      }
+
+      set y(value) {
+        this.#elements[1] = value;
+      }
+
+      set z(value) {
+        this.#elements[2] = value;
+      }
+
+      get elements() {
+        return this.#elements;
+      }
+
+      constructor(...args) {
+        this.#elements[0] = args[0] || 0;
+        this.#elements[1] = args[1] || 0;
+        this.#elements[2] = args[2] || 0;
+        return this;
+      }
+
+      add(v) {
+        this.x += v.x;
+        this.y += v.y;
+        this.z += v.z;
+        return this;
+      }
+
+      sub(v) {
+        this.x -= v.x;
+        this.y -= v.y;
+        this.z -= v.z;
+        return this;
+      }
+
+      mul(v) {
+        this.x *= v.x;
+        this.y *= v.y;
+        this.z *= v.z;
+        return this;
+      }
+
+      mulScalar(s) {
+        this.x *= s;
+        this.y *= s;
+        this.z *= s;
+        return this;
+      }
+
+      div(v) {
+        this.x /= v.x;
+        this.y /= v.y;
+        this.z /= v.z;
+        return this;
+      }
+
+      divScalar(s) {
+        this.x /= s;
+        this.y /= s;
+        this.z /= s;
+        return this;
+      }
+
+      length() {
+        return Math.sqrt(this.lengthSquared());
+      }
+
+      lengthSquared() {
+        return this.x * this.x + this.y * this.y + this.z * this.z;
+      }
+
+      clone() {
+        return new Vector3(this.x, this.y, this.z);
+      }
+
+      normalize() {
+        const len = this.length();
+        this.x /= len;
+        this.y /= len;
+        this.z /= len;
+        return this;
+      }
+
+      static get zero() {
+        return new Vector3(0, 0, 0);
+      }
+
+      static get one() {
+        return new Vector3(1, 1, 1);
+      }
+
+      static addVectors(a, b) {
+        return new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
+      }
+
+      static subVectors(a, b) {
+        return new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
+      }
+
+      static mulVectors(a, b) {
+        return new Vector3(a.x * b.x, a.y * b.y, a.z * b.z);
+      }
+
+      static mulVectorScalar(v, s) {
+        return new Vector3(v.x * s, v.y * s, v.z * s);
+      }
+
+      static divVectors(a, b) {
+        return new Vector3(a.x / b.x, a.y / b.y, a.z / b.z);
+      }
+
+      static dotVectors(a, b) {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+      }
+
+      static crossVectors(a, b) {
+        return new Vector3(
+          a.y * b.z - a.z * b.y,
+          a.z * b.x - a.x * b.z,
+          a.x * b.y - a.y * b.x
+        );
+      }
+      
+      static copy(v) {
+        return new Vector3(v.x, v.y, v.z);
+      }
+    }
+  </script>
+
+  <script id="webgl-script">
+    class BaseGLObject {
+      #gpu
+
+      constructor({ gpu }) {
+        this.#gpu = gpu;
+      }
+      getGLContext() {
+        return this.#gpu.gl;
+      }
+      getGLObject() {
+        throw "should implement method";
+      }
+    }
+
+    class GPU {
+      #gl;
+
+      get gl() {
+        return this.#gl;
+      }
+
+      static VertexUsageType = {
+        StaticDraw: "StaticDraw",
+        DynamicDraw: "DynamicDraw"
+      }
+
+      constructor({ canvas }) {
+        const gl = canvas.getContext('webgl2');
+        this.#gl = gl;
+      }
+    }
+
+    class Shader extends BaseGLObject {
+      #program;
+
+      getGLObject() {
+        return this.#program;
+      }
+
+      constructor({ gpu, vertexShaderText, fragmentShaderText, u }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
+
+        const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertexShader, vertexShaderText);
+        gl.compileShader(vertexShader);
+        const vertexShaderInfoLog = gl.getShaderInfoLog(vertexShader);
+        if(vertexShaderInfoLog.length > 0) {
+          throw vertexShaderInfoLog;
+        }
+
+        const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragmentShader, fragmentShaderText);
+        gl.compileShader(fragmentShader);
+        const fragmentShaderInfoLog = gl.getShaderInfoLog(fragmentShader);
+        if(fragmentShaderInfoLog.length > 0) {
+          throw fragmentShaderInfoLog;
+        }
+
+        const program = gl.createProgram()
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program)
+        const programInfoLog = gl.getProgramInfoLog(program);
+        if(programInfoLog.length > 0) {
+          throw programInfoLog;
+        }
+
+        this.#program = program;
+      }
+    }
+
+    class VertexBufferObject extends BaseGLObject {
+      #vbo;
+      #usage;
+      #name;
+
+      getGLObject() {
+        return this.#vbo;
+      }
+
+      get name() {
+        this.#name;
+      }
+
+      constructor({ gpu, name, location, data, stride, usage }) {
+        super({ gpu });
+        const gl = this.getGLContext();
+        this.#vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
+
+        this.#usage = usage;
+        this.#name = name;
+
+        let vertexUsage = null;
+        switch(usage) {
+          case GPU.VertexUsageType.StaticDraw:
+            vertexUsage = gl.STATIC_DRAW;
+            break;
+          case GPU.VertexUsageType.DynamicDraw:
+            vertexUsage = gl.DYNAMIC_DRAW;
+            break;
+          default:
+            throw "invalid vertex usage type for set buffer data.";
+        }
+
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), vertexUsage);
+        gl.enableVertexAttribArray(location);
+        gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
+
+        // NOTE: 親側で処理をするべきかも
+        this.unbind();
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      }
+
+      update(data) {
+        if(this.#usage != GPU.VertexUsageType.DynamicDraw) {
+          console.error("invalid vertex usage type for dynamic update.");
+          return;
+        }
+        const gl = this.getGLContext();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(data));
+        this.unbind();
+      }
+    }
+
+    class VertexArrayObject extends BaseGLObject {
+      #vao;
+      #vboList = [];
+
+      getGLObject() {
+        return this.#vao;
+      }
+
+      constructor({ gpu, attributes }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
+        this.#vao = gl.createVertexArray();
+
+        this.bind();
+
+        for(let i = 0; i < attributes.length; i++) {
+          const attribute = attributes[i];
+
+          const { name, stride, data, usage } = attribute;
+          const location = attribute.location || i;
+
+          const vbo = new VertexBufferObject({
+            gpu,
+            name,
+            data,
+            location,
+            stride,
+            usage: usage || GPU.VertexUsageType.StaticDraw
+          });
+
+          this.#vboList[i] = {
+            name, vbo
+          }
+        }
+
+        // NOTE: indexを使う場合もあるのでここでunbindはしない
+      }
+
+      bind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(this.#vao);
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(null);
+      }
+
+      #findVertexBufferObject(name) {
+        for(let i = 0; i < this.#vboList.length; i++) {
+          if(name === this.#vboList[i].name) {
+            return this.#vboList[i];
+          }
+        }
+        return null;
+      }
+
+      updateVertexBufferObject(name, data) {
+        const result = this.#findVertexBufferObject(name);
+        if(!result) {
+          return;
+        }
+        result.vbo.update(data);
+      }
+    }
+
+    class IndexBufferObject extends BaseGLObject {
+      #indexBufferObject;
+      #indices;
+
+      constructor({ gpu, indices }) {
+        super({ gpu });
+
+        this.#indices = indices;
+
+        const gl = this.getGLContext();
+        this.#indexBufferObject = gl.createBuffer();
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBufferObject);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), gl.STATIC_DRAW);
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(null);
+      }
+    }
+
+    class Material {
+      #shader;
+      #uniforms;
+      #primitiveType;
+
+      static PrimitiveType = {
+        Points: "Points",
+        Triangles: "Triangles",
+      };
+      
+      static UniformType = {
+        Texture2D: "Texture2D"
+      };
+
+
+      get primitiveType() {
+        return this.#primitiveType;
+      }
+
+      get shader() {
+        return this.#shader;
+      }
+
+      get uniforms() {
+        return this.#uniforms;
+      }
+
+      constructor({ gpu, vertexShader, fragmentShader, uniforms, primitiveType }) {
+        this.#shader = new Shader({ gpu, vertexShaderText: vertexShader, fragmentShaderText: fragmentShader });
+        this.#uniforms = uniforms;
+        this.#primitiveType = primitiveType;
+      }
+    }
+
+    class Geometry {
+      #vertexArrayObject;
+      #indexBufferObject;
+      #attributes;
+      #indices;
+
+      get vertexArrayObject() {
+        return this.#vertexArrayObject;
+      }
+
+      get indices() {
+        return this.#indices;
+      }
+
+      get attributes() {
+        return this.#attributes;
+      }
+
+      constructor({ gpu, attributes, indices }) {
+        const gl = gpu.gl;
+
+        this.#attributes = attributes;
+
+        this.#vertexArrayObject = new VertexArrayObject({ gpu, attributes });
+
+        if(indices) {
+          this.#indices = indices;
+          this.#indexBufferObject = new IndexBufferObject({ gpu, indices });
+        }
+
+        // unbinds
+        this.#vertexArrayObject.unbind();
+        if(this.#indexBufferObject) {
+          this.#indexBufferObject.unbind();
+        }
+      }
+
+      get vertexCount() {
+        const attribute = this.#attributes[0];
+        return attribute.data.length / attribute.stride;
+      }
+
+      updateAttribute(name, data) {
+        // NOTE: 関数を呼ぶだけの関数になっているので変えたい
+        this.#vertexArrayObject.updateVertexBufferObject(name, data);
+      }
+    }
+
+    class Texture extends BaseGLObject {
+      #texture;
+      #img;
+
+      static WrapType = {
+        ClampToEdge: "ClampToEdge",
+        Repeat: "Repeat"
+      }
+
+      getGLObject() {
+        return this.#texture;
+      }
+
+      constructor({
+        gpu,
+        img,
+        width,
+        height,
+        mipmap = true,
+        wrapS = Texture.WrapType.ClampToEdge,
+        wrapT = Texture.WrapType.ClampToEdge,
+        flipY = true
+      }) {
+        super({ gpu });
+
+        this.#img = img || null;
+
+        const gl = this.getGLContext();
+
+        this.#texture = gl.createTexture();
+
+        gl.bindTexture(gl.TEXTURE_2D, this.#texture);
+
+        if(this.#img) {
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, !!flipY);
+        }
+
+        if(width && height) {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+        } else {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+        }
+
+        if(mipmap) {
+          gl.generateMipmap(gl.TEXTURE_2D);
+        }
+
+        // TODO: specify filter
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+        switch(wrapS) {
+          case Texture.WrapType.Repeat:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            break;
+          case Texture.WrapType.ClampToEdge:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            break;
+        }
+
+        switch(wrapT) {
+          case Texture.WrapType.Repeat:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+            break;
+          case Texture.WrapType.ClampToEdge:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            break;
+        }
+
+        // TODO: unbind
+      }
+
+      setSize(width, height) {
+        const gl = this.getGLContext();
+        gl.bindTexture(gl.TEXTURE_2D, this.#texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+      }
+    }
+
+    class Renderbuffer extends BaseGLObject {
+      #renderbuffer;
+      #type;
+
+      static Type = {
+        Depth: "Depth",
+      };
+
+      getGLObject() {
+        return this.#renderbuffer;
+      }      
+
+      constructor({ gpu, type, width, height }) {
+        super({ gpu });
+
+        this.#type = type;
+
+        const gl = this.getGLContext();
+
+        this.#renderbuffer = gl.createRenderbuffer();
+        
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+
+        if(this.#type === Renderbuffer.Type.Depth) {
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            gl.DEPTH_COMPONENT16,
+            width,
+            height
+          );
+        }
+      }
+
+      setSize(width, height) {
+        const gl = this.getGLContext();
+
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+
+        if(this.#type === Renderbuffer.Type.Depth) {
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            gl.DEPTH_COMPONENT16,
+            width,
+            height
+          );
+        }
+      }
+
+      bind() {
+        const gl = this.getGLContext();
+
+        gl.framebufferRenderbuffer(
+          gl.FRAMEBUFFER,
+          gl.DEPTH_ATTACHMENT,
+          gl.RENDERBUFFER,
+          this.getGLObject()
+        );
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+
+        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      }
+    }
+
+    class Framebuffer extends BaseGLObject {
+      #framebuffer;
+
+      getGLObject() {
+        return this.#framebuffer;
+      }
+
+      constructor({ gpu }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
+
+        this.#framebuffer = gl.createFramebuffer();
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.#framebuffer);
+      }
+    }
+
+    class RenderTarget {
+      #texture;
+      #framebuffer;
+      #depthRenderbuffer;
+
+      get texture() {
+        return this.#texture;
+      }
+
+      get framebuffer() {
+        return this.#framebuffer;
+      }
+
+      get depthRenderbuffer() {
+        return this.#depthRenderbuffer;
+      }
+
+      constructor({
+        gpu,
+        width = 1,
+        height = 1,
+        useDepth = true
+      }) {
+        const gl = gpu.gl;
+
+        this.#framebuffer = new Framebuffer({ gpu });
+
+        if(useDepth) {
+          this.#depthRenderbuffer = new Renderbuffer({
+            gpu,
+            width,
+            height,
+            type: Renderbuffer.Type.Depth
+          });
+        }
+
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.bind();
+        }
+
+        this.#texture = new Texture({
+          gpu,
+          width: 1,
+          height: 1,
+          mipmap: false,
+        });
+
+        gl.framebufferTexture2D(
+          gl.FRAMEBUFFER,
+          gl.COLOR_ATTACHMENT0,
+          gl.TEXTURE_2D,
+          this.#texture.getGLObject(),
+          0
+        );
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.unbind();
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
+      setSize(width, height) {
+        this.#texture.setSize(width, height);
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.setSize(width, height);
+        }
+      }
+    }
+
+    class Mesh {
+      #material;
+      #geometry;
+
+      get material() {
+        return this.#material;
+      }
+
+      get geometry() {
+        return this.#geometry;
+      }
+
+      constructor({ material, geometry }) {
+        this.#material = material;
+        this.#geometry = geometry;
+      }
+    }
+
+    // TODO: gl系の処理をgpuに移してもいいかもしれない
+    class Renderer {
+      #gpu; 
+      #renderTarget;
+      #dummyTexture;
+
+      constructor({ gpu }) {
+        this.#gpu = gpu;
+        this.#dummyTexture = createWhite1x1();
+      }
+
+      setRenderTarget(renderTarget) {
+        const gl = this.#gpu.gl;
+        this.#renderTarget = renderTarget;
+        if(this.#renderTarget) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, this.#renderTarget.framebuffer.getGLObject());
+        }
+      }
+
+      unsetRenderTarget() {
+        const gl = this.#gpu.gl;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
+      clear(r = 0, g = 0, b = 0, a = 1) {
+        const gl = this.#gpu.gl;
+        gl.clearColor(r, g, b, a);
+        gl.clearDepth(1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      }
+
+      render({ meshes }) {
+        const gl = this.#gpu.gl;
+        for(let i = 0; i < meshes.length; i++)  {
+          const mesh = meshes[i];
+          const { material, geometry } = mesh;
+          const { uniforms } = material;
+          const program = material.shader.getGLObject();
+          const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
+          const indices = geometry.indices;
+          gl.useProgram(program);
+          gl.bindVertexArray(vertexArrayObject);
+
+          // init textures
+          let activeTextureIndex = 0;
+          // NOTE:
+          // - glから最大テクスチャ割当可能数を取得して動的に設定してもよい
+          // - 連番なので列挙しなくてもよい
+          const textureUnits = [
+            gl.TEXTURE0,
+            gl.TEXTURE1,
+            gl.TEXTURE2,
+            gl.TEXTURE3,
+            gl.TEXTURE4,
+            gl.TEXTURE5,
+            gl.TEXTURE6,
+            gl.TEXTURE7,
+          ];
+
+          const uniformsKeys = Object.keys(uniforms);
+          for(let i = 0; i < uniformsKeys.length; i++) {
+            const name = uniformsKeys[i];
+            const { type, data } = uniforms[name];
+            const location = gl.getUniformLocation(program, name);
+            switch(type) {
+              case Material.UniformType.Texture2D:
+                const texture = data || this.dummyTexture;
+                gl.activeTexture(textureUnits[activeTextureIndex]);
+                gl.bindTexture(
+                  gl.TEXTURE_2D,
+                  texture.getGLObject()
+                );
+                gl.uniform1i(location, activeTextureIndex);
+                activeTextureIndex++;
+                break;
+              default:
+                throw "invalid uniform type";
+            }
+          }
+          
+          let primitiveType = null;
+          switch(mesh.material.primitiveType) {
+            case Material.PrimitiveType.Points:
+              primitiveType = gl.POINTS;
+              break;
+            case Material.PrimitiveType.Triangles:
+              primitiveType = gl.TRIANGLES;
+              break;
+          }
+
+          if(primitiveType === null) {
+            console.error("invalid primitive type.");
+          }
+
+          if(indices) {
+            gl.drawElements(primitiveType, indices.length, gl.UNSIGNED_SHORT, 0);
+          } else {
+            // TODO: primitive type に応じて vertexcount 調整
+            gl.drawArrays(primitiveType, 0, geometry.vertexCount);
+          }
+        }
+        gl.flush();
+      }
+    }
+  </script>
+
+  <script id="raytracing-script">
+    class Ray {
+      #origin;
+      #direction;
+
+      get origin() {
+        return this.#origin;
+      }
+
+      get direction() {
+        return this.#direction;
+      }
+
+      constructor(origin, direction) {
+        this.#origin = origin;
+        this.#direction = direction.normalize();
+      }
+
+      at(t) {
+        return Vector3.addVectors(
+          this.#origin,
+          Vector3.mulVectorScalar(this.#direction, t)
+        );
+      }
+    }
+
+    class Camera {
+      position;
+      direction;
+      #aspect;
+
+      constructor(position, direction) {
+        this.position = position || Vector3.zero;
+        this.direction = direction || Vector3.zero;
+      }
+
+      setSize(w, h) {
+        this.#aspect = w / h;
+      }
+
+      getRay(x, y) {
+        const h = 1;
+        const w = this.#aspect * h;
+        const ray = new Ray(
+          this.position,
+          new Vector3(w * x, h * y, 0).add(this.direction.clone())
+        );
+        return ray;
+      }
+    }
+
+    class RaytraceRenderer {
+      #renderer;
+      #renderTarget;
+      #pointMesh;
+      #fullQuadMesh;
+
+      constructor({ gpu }) {
+        this.#renderer = new Renderer({ gpu });
+        this.#renderTarget = new RenderTarget({ gpu });
+
+        const fullQuadVertexShaderText = `#version 300 es
+          layout(location = 0) in vec3 aPosition;
+          layout(location = 1) in vec2 aUv;
+          out vec2 vUv;
+          void main() {
+            vUv = aUv;
+            gl_Position = vec4(aPosition, 1.);
+          }
+        `;
+
+        const fullQuadFragmentShaderText = `#version 300 es
+          precision mediump float;
+          in vec2 vUv;
+          out vec4 outColor;
+          uniform sampler2D uSceneTexture;
+          void main() {
+            vec2 uv = vUv.xy;
+            vec4 sceneColor = texture(uSceneTexture, uv);
+            outColor = sceneColor;
+            // outColor = vec4(vUv, 0., 1.);
+          }
+        `;
+
+        const fullQuadMaterial = new Material({
+          gpu,
+          vertexShader: fullQuadVertexShaderText,
+          fragmentShader: fullQuadFragmentShaderText,
+          uniforms: {
+            uSceneTexture: {
+              type: Material.UniformType.Texture2D,
+              data: this.#renderTarget.texture
+            }
+          },
+          primitiveType: Material.PrimitiveType.Triangles
+        });
+
+        // 3 ----- 2
+        // |     / |
+        // |    /  |
+        // |   /   |
+        // |  /    |
+        // | /     |
+        // 0 ----- 1
+        const fullQuadGeometry = new Geometry({
+          gpu,
+          attributes: [
+            {
+              name: 'position',
+              data: [
+                -1.0, -1.0, 0.0,                
+                1.0, -1.0, 0.0,                
+                1.0, 1.0, 0.0,                
+                -1.0, 1.0, 0.0,                
+              ],
+              stride: 3
+            },
+            {
+              name: 'uv',
+              data: [
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+              ],
+              stride: 2
+            },
+          ],
+          indices: [
+            0, 1, 2,
+            2, 3, 0
+          ]
+        });
+
+        this.#fullQuadMesh = new Mesh({
+          material: fullQuadMaterial,
+          geometry: fullQuadGeometry,
+        });
+
+        const pointVertexShaderText = `#version 300 es
+          layout(location = 0) in vec3 aPosition;
+          layout(location = 1) in vec3 aColor;
+          out vec3 vColor;
+          void main() {
+            vColor = aColor;
+            gl_Position = vec4(aPosition, 1);
+            gl_PointSize = 1.0;
+          }
+        `;
+
+        const pointFragmentShaderText = `#version 300 es
+          precision mediump float;
+          in vec3 vColor;
+          out vec4 outColor;
+          void main() {
+            outColor = vec4(vColor, 1);
+          }
+        `;
+
+        const pointMaterial = new Material({
+          gpu,
+          vertexShader: pointVertexShaderText,
+          fragmentShader: pointFragmentShaderText,
+          uniforms: {},
+          primitiveType: Material.PrimitiveType.Points });
+
+        const pointGeometry = new Geometry({
+          gpu,
+          attributes: [
+            {
+              name: 'position',
+              data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+                0, 0, 0
+              ])).flat(),
+              stride: 3,
+              usage: GPU.VertexUsageType.DynamicDraw
+            },
+            {
+              name: 'color',
+              data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+                0, 0, 0
+              ])).flat(),
+              stride: 3,
+              usage: GPU.VertexUsageType.DynamicDraw
+            }
+          ]
+        });
+
+        // 本当は外から渡したい
+        const utilitiesScript = document.querySelector("#utilities-script").textContent;
+        const workerScript = document.querySelector("#worker-script").textContent;
+        const webglScript = document.querySelector("#webgl-script").textContent;
+        const raytracingScript = document.querySelector("#raytracing-script").textContent;
+
+        const scriptBlob = new Blob([
+          workerScript,
+          utilitiesScript,
+          webglScript,
+          raytracingScript,
+        ]);
+        const blobUrl = window.URL.createObjectURL(scriptBlob);
+
+        const buildWorkerArgs = () => {
+          return {
+            pointNum: DRAW_POINT_NUM,
+            width: sceneWidth,
+            height: sceneHeight,
+          }
+        }
+
+        const threadNum = Math.min(4, window.navigator.hardwareConcurrency);
+        // const threadNum = 1;
+
+        for(let i = 0; i < threadNum; i++) {
+          const worker = new Worker(blobUrl);
+
+          worker.onmessage = async (e) => {
+            const [{ positions, colors }] = e.data;
+            pointGeometry.updateAttribute('position', positions.flat());
+            pointGeometry.updateAttribute('color', colors.flat());
+
+            // 負荷対策でちょっと間引く
+            await new Wait(1000 / 60).exec();
+            // await new Wait(1000).exec();
+
+            const workerArgs = buildWorkerArgs();
+
+            worker.postMessage([buildWorkerArgs()]);
+          };
+
+          worker.onerror = (e) => {
+            console.error(e);
+          }
+          worker.postMessage([buildWorkerArgs()]);
+        }
+
+        this.#pointMesh = new Mesh({
+          material: pointMaterial,
+          geometry: pointGeometry,
+        });
+      }
+
+      setSize(width, height) {
+        this.#renderTarget.setSize(width, height);
+      }
+
+      render() {
+        this.#renderer.clear();
+        this.#renderer.setRenderTarget(this.#renderTarget);
+        this.#renderer.render({ meshes: [ this.#pointMesh ]});
+        this.#renderer.unsetRenderTarget();
+        this.#renderer.render({ meshes: [ this.#fullQuadMesh ]});
+      }
+    }
+
+    class HitInfo {
+        #distance;
+        #position;
+        #normal;
+
+        get distance() {
+          return this.#distance;
+        }
+
+        get position() {
+          return this.#position;
+        }
+
+        get normal() {
+          return this.#normal;
+        }
+
+        constructor({ distance, position, normal }) {
+          this.#distance = distance;
+          this.#position = position;
+          this.#normal = normal;
+        }
+    }
+
+    class BaseHittable {
+      constructor() {}
+
+      hit(ray, tMin, tMax) {
+        throw 'implement method.'
+      }
+
+      static setFaceNormal(ray, normal) {
+        const frontFace = Vector3.dotVectors(ray.direction, normal) < 0;
+        return frontFace ? normal : normal.clone().mulScalar(-1);
+      }
+    }
+
+    class Sphere extends BaseHittable {
+      #center;
+      #radius;
+      
+      get center() {
+        return this.#center;
+      }
+
+      get radius() {
+        return this.#radius;
+      }
+
+      constructor(center, radius) {
+        super();
+        this.#center = center;
+        this.#radius = radius;
+      }
+
+      hit(ray, tMin, tMax) {
+        /*
+         * 2次方程式のxの解
+         * x = (-b (+-) sqrt (b^2 - 4ac)) / 2a
+         *
+         * 球の公式
+         * x^2 + y^2 + z^2 = r^2;
+         *
+         * // 中心位置をcx,cy,czとすると
+         * (x - cx)^2 + (y - cy)^2 + (z - cz)^2 = r^2
+         *
+         * // 位置をx,y,zとすると
+         * (px - cx)^2 + (pz - cy)^2 + (pz - cz)^2 = r^2
+         * a: (p - c)^2 = r^2
+         *
+         * // rayの方程式
+         * p(t) = o + td;
+         *
+         * // a に代入
+         * (p(t) - c)^2 = r^2
+         * (o + td - c)^2 = r^2
+         *
+         * oc = o - cとすると
+         * (oc + td)^2 = r^2
+         * (oc + td)^2 - r^2 = 0
+         *
+         * tについて展開
+         * (d*d)t^2 + 2(d + oc)t + (oc)^2 - r^2 = 0
+         *
+         * ax^2 + bx + c = 0 の二次方程式に判別式Dを当てはめると、
+         *
+         * D = b^2 - 4ac
+         * a = (d dot d)
+         * b = 2 * (d dot oc)
+         * c = (oc dot oc) - r^2
+         * 
+         * ---
+         * 
+         * b = 2h とすると、
+         * x = (-2h (+-) sqrt ((2h)^2 - 4ac)) / 2a
+         * 2を外に出す
+         * x = (-2h (+-) 2 * sqrt (h^2 - ac)) / 2a
+         * 2で全部割れるので
+         * x = (-h (+-) sqrt (h^2 - ac)) / a
+         */
+
+        const oc = Vector3.subVectors(ray.origin, this.#center);
+        const a = Vector3.dotVectors(ray.direction, ray.direction);
+        // b = 2h より、 h = b / 2
+        const halfB = Vector3.dotVectors(oc, ray.direction);
+        const c = Vector3.dotVectors(oc, oc) - this.#radius * this.#radius;
+        // 判別式
+        const discriminant = halfB * halfB - a * c;
+
+        if(discriminant < 0) {
+          return null;
+        }
+
+        const sqrtD = Math.sqrt(discriminant);
+
+        // 二次方程式の解がrayの長さの最小以下・最大以上だったらヒットしていないとみなす
+        let root = (-halfB - sqrtD) / a;
+        if(root < tMin || tMax < root) {
+          root = (-halfB + sqrtD) / a;
+          if(root < tMin || tMax < root) {
+            return null;
+          }
+        }
+
+        const distance = root;
+        const position = ray.at(distance);
+
+        let normal = Vector3.subVectors(position, this.#center).divScalar(this.#radius);
+        normal = BaseHittable.setFaceNormal(ray, normal);
+
+        return new HitInfo({ distance, position, normal });
+      }
+    }
+
+    class HittableList extends BaseHittable {
+      #hitObjects;
+      constructor(hitObjects = []) {
+        super();
+        this.#hitObjects = hitObjects;
+      }
+
+      add(hittableObject) {
+        this.#hitObjects.push(hittableObject);
+      }
+
+      hit(ray, tMin, tMax) {
+        let isHit = false;
+        let hitInfo = null;
+        // ヒットした距離を更新してヒット判定の最大長に渡すことで重なり順を解決
+        let hitDistance = tMax;
+
+        for(let i = 0; i < this.#hitObjects.length; i++) {
+          const hitObject = this.#hitObjects[i];
+          let currentHitInfo = hitObject.hit(ray, tMin, hitDistance);
+          if(currentHitInfo) {
+            isHit = true;
+            hitInfo = currentHitInfo;
+            hitDistance = hitInfo.distance;
+          }
+        }
+
+        return hitInfo;
+      }
+    }
+  </script>
+
+  <script id="worker-script">
+    // TODO:
+    // - scene を trace する部分を外から渡せるように
+    // - raytracing class に移す方がたぶんよい
+    self.onmessage = (e) => {
+      const [{
+        pointNum,
+        width,
+        height,
+      }] = e.data;
+
+      const camera = new Camera();
+      camera.position = new Vector3(0, 0, 1);
+      camera.direction = new Vector3(0, 0, -1);
+      camera.setSize(width, height);
+
+      const world = new HittableList();
+      world.add(new Sphere(new Vector3(0, 0, 0), 0.5));
+      world.add(new Sphere(new Vector3(0, -100.5, 0), 100))
+
+      const getRayColor = (ray) => {
+        const hitInfo = world.hit(ray, 0.0001, 10000);
+        if(hitInfo) {
+          return Vector3.addVectors(hitInfo.normal, Vector3.one).mulScalar(0.5);
+        }
+        const rayDir = ray.direction.normalize();
+        t = 0.5 * (rayDir.y + 1.0);
+        return new Vector3(1.0, 1.0, 1.0)
+          .mulScalar(1.0 - t)
+          .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
+      }
+
+      const positions = ([...new Array(pointNum)].map((_, i) => {
+        // ピクセル座標
+        const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
+        const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
+        // -1 ~ 1 に直す
+        const x = (px / width) * 2 - 1;
+        const y = (py / height) * 2 - 1;
+        const z = 0;
+        return [
+          x,
+          y,
+          z
+        ];
+      }));
+
+      const stepX = 1 / width;
+      const stepY = 1 / height;
+
+      const colors = positions.map(p => {
+        const x = p[0];
+        const y = p[1];
+        const sampleNumPerPixel = 16;
+        const accColor = [...new Array(sampleNumPerPixel)].reduce((prev, current, i) => {
+          const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
+          const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
+          const ray = camera.getRay(x + addX, y + addY);
+          const color = getRayColor(ray);
+          prev.x += color.x;
+          prev.y += color.y;
+          prev.z += color.z;
+          return prev;
+        }, Vector3.zero);
+        const color = accColor.divScalar(sampleNumPerPixel);
+        return color.elements;
+      });
+
+      postMessage([{ positions, colors }]);
+    }
+  </script>
+
+  <script>
+    const CANVAS_WIDTH = 320;
+    const CANVAS_HEIGHT = 180;
+    const DRAW_POINT_NUM = 512;
+
+    const canvas = document.querySelector(".js-canvas");
+
+    const sceneWidth = CANVAS_WIDTH;
+    const sceneHeight = CANVAS_HEIGHT;
+
+    canvas.width = sceneWidth;
+    canvas.height = sceneHeight;
+
+    const gpu = new GPU({
+      canvas,
+    });
+
+    const renderer = new RaytraceRenderer({ gpu });
+    
+    const setSize = () => {
+      renderer.setSize(sceneWidth, sceneHeight);
+    }
+
+    const tick = (time) => {
+      renderer.render();
+      requestAnimationFrame(tick);
+    }
+
+    setSize();
+    window.addEventListener('resize', () => setSize());
+    requestAnimationFrame(tick);
+  </script>
+</body>
+</html>
