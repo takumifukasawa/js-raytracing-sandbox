@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -206,7 +207,7 @@
 
       constructor(origin, direction) {
         this.#origin = origin;
-        this.#direction = direction;
+        this.#direction = direction.normalize();
       }
 
       at(t) {
@@ -219,7 +220,7 @@
   </script>
 
   <script id="webgl-script">
-    class AbstractGLObject {
+    class BaseGLObject {
       #gpu
 
       constructor({ gpu }) {
@@ -251,7 +252,7 @@
       }
     }
 
-    class Shader extends AbstractGLObject {
+    class Shader extends BaseGLObject {
       #program;
 
       getGLObject() {
@@ -292,7 +293,7 @@
       }
     }
 
-    class VertexBufferObject extends AbstractGLObject {
+    class VertexBufferObject extends BaseGLObject {
       #vbo;
       #usage;
       #name;
@@ -351,7 +352,7 @@
       }
     }
 
-    class VertexArrayObject extends AbstractGLObject {
+    class VertexArrayObject extends BaseGLObject {
       #vao;
       #vboList = [];
 
@@ -418,7 +419,7 @@
       }
     }
 
-    class IndexBufferObject extends AbstractGLObject {
+    class IndexBufferObject extends BaseGLObject {
       #indexBufferObject;
       #indices;
 
@@ -522,7 +523,7 @@
       }
     }
 
-    class Texture extends AbstractGLObject {
+    class Texture extends BaseGLObject {
       #texture;
       #img;
 
@@ -601,7 +602,7 @@
       }
     }
 
-    class Renderbuffer extends AbstractGLObject {
+    class Renderbuffer extends BaseGLObject {
       #renderbuffer;
       #type;
 
@@ -667,7 +668,7 @@
       }
     }
 
-    class Framebuffer extends AbstractGLObject {
+    class Framebuffer extends BaseGLObject {
       #framebuffer;
 
       getGLObject() {
@@ -1100,15 +1101,44 @@
       }
     }
 
-    class AbstractHittableObject {
+    class HitInfo {
+        #distance;
+        #position;
+        #normal;
+
+        get distance() {
+          return this.#distance;
+        }
+
+        get position() {
+          return this.#position;
+        }
+
+        get normal() {
+          return this.#normal;
+        }
+
+        constructor({ distance, position, normal }) {
+          this.#distance = distance;
+          this.#position = position;
+          this.#normal = normal;
+        }
+    }
+
+    class BaseHittable {
       constructor() {}
 
       hit(ray, tMin, tMax) {
         throw 'implement method.'
       }
+
+      static setFaceNormal(ray, normal) {
+        const frontFace = Vector3.dotVectors(ray.direction, normal) < 0;
+        return frontFace ? normal : normal.clone().mulScalar(-1);
+      }
     }
 
-    class Sphere extends AbstractHittableObject {
+    class Sphere extends BaseHittable {
       #center;
       #radius;
       
@@ -1195,10 +1225,22 @@
           }
         }
 
-        const t = root;
-        const p = ray.at(t);
-        const normal = Vector3.subVectors(p, this.#center).divScalar(this.#radius);
-        return { t, p, normal };
+        const distance = root;
+        const position = ray.at(distance);
+
+        let normal = Vector3.subVectors(position, this.#center).divScalar(this.#radius);
+        normal = BaseHittable.setFaceNormal(ray, normal);
+
+        return new HitInfo({ distance, position, normal });
+      }
+    }
+
+    class HittableList extends BaseHittable {
+      constructor() {
+        super();
+      }
+
+      hit(ray, tMin, tMax) {
       }
     }
   </script>
