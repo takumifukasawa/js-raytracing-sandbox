@@ -1408,7 +1408,7 @@
           accColor.y += gamma(currentColor.y);
           accColor.z += gamma(currentColor.z);
         }
-        const scale = 1 / sampleNumPerPixel;
+        const scale = sampleNumPerPixel;
         const color = accColor.divScalar(sampleNumPerPixel);
         return color.elements;
       });
