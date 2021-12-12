@@ -1360,10 +1360,10 @@
       const colors = positions.map(p => {
         const x = p[0];
         const y = p[1];
-        const sampleNumPerPixel = 4;
+        const sampleNumPerPixel = 16;
         const accColor = [...new Array(sampleNumPerPixel)].reduce((prev, current, i) => {
-          const addX = Math.random() * stepX;
-          const addY = Math.random() * stepY;
+          const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
+          const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
           const ray = camera.getRay(x + addX, y + addY);
           const color = getRayColor(ray);
           prev.x += color.x;
