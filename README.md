@@ -1,4 +1,4 @@
-# js-raytracing-training
+# js-raytracing-sandbox
 
 ## refs
 
