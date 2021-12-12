@@ -38,6 +38,20 @@
       }
     }
 
+    class Wait {
+      #msec
+      constructor(msec) {
+        this.#msec = msec;
+      }
+      exec() {
+        return new Promise(resolve => {
+          window.setTimeout(() => {
+            resolve();
+          }, this.#msec);
+        });
+      }
+    }
+
     class Vector3 {
       #elements = [];
 
@@ -1095,14 +1109,6 @@
         }
       ]
     });
-
-    const wait = (msec) => {
-      return new Promise(resolve => {
-        window.setTimeout(() => {
-          resolve();
-        }, msec);
-      });
-    }
 
     const librariesScript = document.querySelector("#libraries-script").textContent;
     const workerScript = document.querySelector("#worker-script").textContent;
