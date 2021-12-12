@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>test-worker</title>
+</head>
+<body>
+    <script>
+        class FunctionWorker extends Worker {
+            constructor(src) {
+                const str = src.toString()
+                    .replace(/^.*{.*/, "")
+                    .replace(/.*\}$/, "")
+                    .replace(/^\n\s*/, "")
+                    .replace(/\n$/, "");
+
+                // for debug
+                // console.log(str)
+
+                const blobUrl = window.URL.createObjectURL(new Blob([str]));
+
+                super(blobUrl);
+            }
+        }
+
+        const throughWorker = () => {
+            const blob = new Blob([
+                `
+                self.onmessage = (e) => {
+                    postMessage(e.data);
+                }
+                `
+            ]);
+
+            const blobUrl = window.URL.createObjectURL(blob);
+
+            const worker = new Worker(blobUrl);
+
+            worker.onmessage = (e) => {
+                console.log("onmessage", e);
+            };
+            worker.onmessageerror = (e) => {
+                console.log("onmessageerror", e);
+            };
+            worker.onerror = (e) => {
+                console.log("onerror", e);
+            };
+
+            worker.postMessage(["a", 0, "b", 1], []);
+        }
+
+        const testThroughFunctionWorker = () => {
+            const testThroughFunctionWorker = new FunctionWorker(() => {
+                // self: DedicatedWorkerGlobalScope
+                self.onmessage = (e) => {
+                    postMessage(e.data);
+                }
+            });
+            testThroughFunctionWorker.onmessage = (e) => {
+                console.log("onmessage", e);
+            }
+            testThroughFunctionWorker.onerror = (e) => {
+                console.log("onerror", e);
+            }
+            testThroughFunctionWorker.onmessageerror = (e) => {
+                console.log("onmessageerror", e);
+            }
+
+            testThroughFunctionWorker.postMessage(["b", 2, "c"]);
+        }
+
+        throughWorker();
+        testThroughFunctionWorker();
+    </script>
+</body>
+</html>
