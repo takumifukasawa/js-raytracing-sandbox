@@ -1114,7 +1114,6 @@
     const workerScript = document.querySelector("#worker-script").textContent;
 
     const blobUrl = window.URL.createObjectURL(new Blob([workerScript, librariesScript]));
-    const worker = new Worker(blobUrl);
 
     const buildWorkerArgs = () => {
       return {
@@ -1124,17 +1123,27 @@
       }
     }
 
-    worker.onmessage = async (e) => {
-      const [{ positions, colors }] = e.data;
-      pointGeometry.updateAttribute('position', positions.flat());
-      pointGeometry.updateAttribute('color', colors.flat());
+    const threadNum = window.navigator.hardwareConcurrency;
+    // const threadNum = 1;
 
-      const workerArgs = buildWorkerArgs();
+    for(let i = 0; i < threadNum; i++) {
+      const worker = new Worker(blobUrl);
 
+      worker.onmessage = async (e) => {
+        const [{ positions, colors }] = e.data;
+        pointGeometry.updateAttribute('position', positions.flat());
+        pointGeometry.updateAttribute('color', colors.flat());
+
+        const workerArgs = buildWorkerArgs();
+
+        worker.postMessage([buildWorkerArgs()]);
+      };
+
+      worker.onerror = (e) => {
+        console.error(e);
+      }
       worker.postMessage([buildWorkerArgs()]);
-    };
-
-    worker.postMessage([buildWorkerArgs()]);
+    }
 
     const pointMesh = new Mesh({
       material: pointMaterial,
@@ -1146,25 +1155,6 @@
     }
 
     const tick = (time) => {
-      // const newPoints = ([...new Array(DRAW_POINT_NUM)].map((_, i) => {
-      //     const x = Math.random() * 2 - 1;
-      //     const y = Math.random() * 2 - 1;
-      //     const z = 1;
-      //     return [x, y, z]
-      // }));
-      // const h = 1.0;
-      // const aspect = sceneWidth / sceneHeight;
-      // const w = aspect * h;
-      // const newColors = newPoints.map(p => {
-      //     const origin = new Vector3(0, 0, 0);
-      //     const direction = new Vector3(0, 0, 1);
-      //     const ray = new Ray(origin, direction.add(new Vector3(p[0] * w, p[1] * h, 0)));
-      //     const color = getRayColor(ray);
-      //     return color.elements;
-      // });
-      // pointGeometry.updateAttribute('position', newPoints.flat());
-      // pointGeometry.updateAttribute('color', newColors.flat());
- 
       renderer.clear();
       renderer.setRenderTarget(renderTarget);
       renderer.render({ meshes: [ pointMesh ]});
@@ -1174,11 +1164,8 @@
       requestAnimationFrame(tick);
     }
 
-    // exec
-
     setSize();
     requestAnimationFrame(tick);
-
   </script>
 </body>
 </html>
