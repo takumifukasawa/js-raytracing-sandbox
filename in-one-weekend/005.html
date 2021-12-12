@@ -1252,9 +1252,9 @@
       hit(ray, tMin, tMax) {
         let isHit = false;
         let hitInfo = null;
+        // ヒットした距離を更新してヒット判定の最大長に渡すことで重なり順を解決
         let hitDistance = tMax;
 
-        
         for(let i = 0; i < this.#hitObjects.length; i++) {
           const hitObject = this.#hitObjects[i];
           let currentHitInfo = hitObject.hit(ray, tMin, hitDistance);
