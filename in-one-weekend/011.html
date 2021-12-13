@@ -993,10 +993,8 @@
       getRay(x, y) {
         const h = 1;
         const w = this.#aspect * h;
-        const ray = new Ray(
-          this.position,
-          new Vector3(w * x, h * y, 0).add(this.direction.clone())
-        );
+        const dir = new Vector3(w * x, h * y, 0).add(this.direction.clone()).normalize();
+        const ray = new Ray(this.position, dir);
         return ray;
       }
     }
@@ -1177,7 +1175,7 @@
 
         const tryExecWorker = async (worker) => {
           // 負荷対策でちょっと間引く
-          await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 15));
+          await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
           // for debug
           // await wait(1000);
 
@@ -1442,12 +1440,11 @@
         this.#albedo = albedo;
       }
 
-      // TODO: scatterDirectionのnormalizeが必要な気がする
       scatter(inRay, hitInfo) {
         const scatterDirection = Vector3.addVectors(
           hitInfo.normal,
           Vector3.randomUnitSphere()
-        );
+        ).normalize();
         if(scatterDirection.isNearZero()) {
           scatterDirection = hitInfo.normal;
         }
@@ -1465,9 +1462,8 @@
         this.#albedo = albedo;
       }
 
-      // TODO: reflectedのnormalizeが必要な気がする
       scatter(inRay, hitInfo) {
-        const reflected = Vector3.reflect(inRay.direction, hitInfo.normal);
+        const reflected = Vector3.reflect(inRay.direction, hitInfo.normal).normalize();
         const scatteredRay = new Ray(hitInfo.position, reflected);
         const attenuation = this.#albedo;
         return Vector3.dotVectors(scatteredRay.direction, hitInfo.normal) > 0
