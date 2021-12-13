@@ -1298,7 +1298,8 @@
         const distance = root;
         const position = ray.at(distance);
 
-        let normal = Vector3.subVectors(position, this.#center).divScalar(this.#radius);
+        // normalizeはなくてよいけど一応
+        let normal = Vector3.subVectors(position, this.#center).divScalar(this.#radius).normalize();
         normal = BaseHittable.setFaceNormal(ray, normal);
 
         return new HitInfo({ distance, position, normal });
@@ -1435,10 +1436,10 @@
     // constants
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 128;
+    const DRAW_POINT_NUM = 256;
     const SAMPLE_NUM_PER_PIXEL = 64;
     const MAX_WORKER_NUM = 8;
-    const MAX_RAY_DEPTH = 50;
+    const MAX_RAY_DEPTH = 64;
 
     const canvas = document.querySelector(".js-canvas");
 
