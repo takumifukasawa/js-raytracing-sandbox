@@ -19,6 +19,8 @@
   <canvas class="js-canvas"></canvas>
 
   <script id="utilities-script">
+    'use strict';
+
     const createWhite1x1 = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -247,6 +249,8 @@
   </script>
 
   <script id="webgl-script">
+    'use strict';
+
     class BaseGLObject {
       #gpu
 
@@ -910,6 +914,8 @@
   </script>
 
   <script id="raytracing-script">
+    'use strict';
+
     class Ray {
       #origin;
       #direction;
@@ -1332,6 +1338,8 @@
   </script>
 
   <script id="worker-script">
+    'use strict';
+
     // TODO:
     // - scene を trace する部分を外から渡せるように
     // - raytracing class に移す方がたぶんよい
@@ -1422,10 +1430,13 @@
   </script>
 
   <script>
+    'use strict';
+
+    // constants
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 256;
-    const SAMPLE_NUM_PER_PIXEL = 32;
+    const DRAW_POINT_NUM = 128;
+    const SAMPLE_NUM_PER_PIXEL = 64;
     const MAX_WORKER_NUM = 8;
     const MAX_RAY_DEPTH = 50;
 
