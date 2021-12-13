@@ -55,6 +55,7 @@
           arr[targetIndex] = arr[lastIndex];
           arr[lastIndex] = tmp;
         }
+        return arr;
       }
     }
 
@@ -751,7 +752,7 @@
       }
     }
 
-    class RenderTarget {
+    class GLRenderTarget {
       #texture;
       #framebuffer;
       #depthRenderbuffer;
@@ -842,7 +843,7 @@
     }
 
     // TODO: gl系の処理をgpuに移してもいいかもしれない
-    class Renderer {
+    class GLRenderer {
       #gpu; 
       #renderTarget;
       #dummyTexture;
@@ -1008,8 +1009,8 @@
       #fullQuadMesh;
 
       constructor({ gpu }) {
-        this.#renderer = new Renderer({ gpu });
-        this.#renderTarget = new RenderTarget({ gpu });
+        this.#renderer = new GLRenderer({ gpu });
+        this.#renderTarget = new GLRenderTarget({ gpu });
 
         const fullQuadVertexShaderText = `#version 300 es
           layout(location = 0) in vec3 aPosition;
@@ -1144,7 +1145,10 @@
         });
       }
 
-      init(updateIndexOrder) {
+      start(orderedPixelIndexes) {
+        // 一応copy
+        const needsUpdatePixelIndexes = [...orderedPixelIndexes];
+
         // NOTE: 本当は外から渡したい
         const utilitiesScript = document.querySelector("#utilities-script").textContent;
         const workerScript = document.querySelector("#worker-script").textContent;
@@ -1161,15 +1165,37 @@
 
         const threadNum = Math.min(MAX_WORKER_NUM, window.navigator.hardwareConcurrency);
 
-        // let updatePixelIndex = 0;
-
         const buildWorkerArgs = () => {
           return {
-            pointNum: DRAW_POINT_NUM,
+            // pointNum: DRAW_POINT_NUM,
             width: sceneWidth,
             height: sceneHeight,
             sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL,
-            maxRayDepth: MAX_RAY_DEPTH
+            maxRayDepth: MAX_RAY_DEPTH,
+            updatePixelIndexes
+          }
+        }
+
+        const tryExecWorker = async (worker) => {
+          // 負荷対策でちょっと間引く
+          await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 15));
+          // for debug
+          // await wait(1000);
+
+          const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, DRAW_POINT_NUM);
+          const args = {
+            // pointNum: DRAW_POINT_NUM,
+            width: sceneWidth,
+            height: sceneHeight,
+            sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL,
+            maxRayDepth: MAX_RAY_DEPTH,
+            updatePixelIndexes
+          };
+
+          if(updatePixelIndexes.length > 0) {
+            worker.postMessage([args]);
+          } else {
+            console.log("end worker !")
           }
         }
 
@@ -1181,20 +1207,17 @@
             this.#pointGeometry.updateAttribute('position', positions.flat());
             this.#pointGeometry.updateAttribute('color', colors.flat());
 
-            // 負荷対策でちょっと間引く
-            await wait(1000 / 60);
-            // for debug
-            // await wait(1000);
+            // worker 内で呼ぶのがいいかはちょっと微妙
+            this.render();
 
-            const workerArgs = buildWorkerArgs();
-
-            worker.postMessage([buildWorkerArgs()]);
+            await tryExecWorker(worker)
           };
 
           worker.onerror = (e) => {
             console.error(e);
           }
-          worker.postMessage([buildWorkerArgs()]);
+
+          tryExecWorker(worker);
         }
       }
 
@@ -1463,11 +1486,12 @@
     // - raytracing class に移す方がたぶんよい
     self.onmessage = (e) => {
       const [{
-        pointNum,
+        // pointNum,
         width,
         height,
         sampleNumPerPixel,
-        maxRayDepth
+        maxRayDepth,
+        updatePixelIndexes
       }] = e.data;
 
       const camera = new Camera();
@@ -1527,11 +1551,12 @@
         materialRight
       ));
 
-
-      const positions = ([...new Array(pointNum)].map((_, i) => {
+      const positions = updatePixelIndexes.map(i => {
         // ピクセル座標
-        const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
-        const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
+        const px = i % width;
+        const py = Math.floor(i / width);
+        // const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
+        // const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
         // -1 ~ 1 に直す
         const x = (px / width) * 2 - 1;
         const y = (py / height) * 2 - 1;
@@ -1541,7 +1566,7 @@
           y,
           z
         ];
-      }));
+      });
 
       const stepX = 1 / width;
       const stepY = 1 / height;
@@ -1578,14 +1603,14 @@
     // constants
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 256;
-    const SAMPLE_NUM_PER_PIXEL = 64;
+    const DRAW_POINT_NUM = 128;
+    const SAMPLE_NUM_PER_PIXEL = 128;
     const MAX_WORKER_NUM = 8;
     const MAX_RAY_DEPTH = 64;
     // constants for debug
     // const CANVAS_WIDTH = 320;
     // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 128;
+    // const DRAW_POINT_NUM = 1;
     // const SAMPLE_NUM_PER_PIXEL = 4;
     // const MAX_WORKER_NUM = 1;
     // const MAX_RAY_DEPTH = 32;
@@ -1610,13 +1635,13 @@
         [...new Array(sceneWidth * sceneHeight)].map((_, i) => i)
       );
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
-      raytraceRenderer.init(updateIndexOrder);
+      raytraceRenderer.start(updateIndexOrder);
     }
 
-    const tick = (time) => {
-      raytraceRenderer.render();
-      requestAnimationFrame(tick);
-    }
+    // const tick = (time) => {
+    //   raytraceRenderer.render();
+    //   requestAnimationFrame(tick);
+    // }
 
     // 今は使わない
     // const setSize = () => {
@@ -1625,7 +1650,7 @@
     // window.addEventListener('resize', () => setSize());
 
     start();
-    requestAnimationFrame(tick);
+    // requestAnimationFrame(tick);
   </script>
 </body>
 </html>
