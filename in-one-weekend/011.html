@@ -1089,7 +1089,9 @@
           material: fullQuadMaterial,
           geometry: fullQuadGeometry,
         });
+      }
 
+      initPointGeometry(pointNum) {
         const pointVertexShaderText = `#version 300 es
           layout(location = 0) in vec3 aPosition;
           layout(location = 1) in vec3 aColor;
@@ -1122,7 +1124,7 @@
           attributes: [
             {
               name: 'position',
-              data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+              data: ([...new Array(pointNum)].map((_, i) => [
                 0, 0, 0
               ])).flat(),
               stride: 3,
@@ -1130,7 +1132,7 @@
             },
             {
               name: 'color',
-              data: ([...new Array(DRAW_POINT_NUM)].map((_, i) => [
+              data: ([...new Array(pointNum)].map((_, i) => [
                 0, 0, 0
               ])).flat(),
               stride: 3,
@@ -1145,7 +1147,15 @@
         });
       }
 
-      start(orderedPixelIndexes) {
+      start({
+        orderedPixelIndexes,
+        maxWorkerNum,
+        drawPointNum,
+        sampleNumPerPixel,
+        maxRayDepth,
+      }) {
+        this.initPointGeometry(drawPointNum);
+
         // 一応copy
         const needsUpdatePixelIndexes = [...orderedPixelIndexes];
 
@@ -1163,18 +1173,7 @@
         ]);
         const blobUrl = window.URL.createObjectURL(scriptBlob);
 
-        const threadNum = Math.min(MAX_WORKER_NUM, window.navigator.hardwareConcurrency);
-
-        const buildWorkerArgs = () => {
-          return {
-            // pointNum: DRAW_POINT_NUM,
-            width: sceneWidth,
-            height: sceneHeight,
-            sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL,
-            maxRayDepth: MAX_RAY_DEPTH,
-            updatePixelIndexes
-          }
-        }
+        const threadNum = Math.min(maxWorkerNum, window.navigator.hardwareConcurrency);
 
         const tryExecWorker = async (worker) => {
           // 負荷対策でちょっと間引く
@@ -1182,13 +1181,13 @@
           // for debug
           // await wait(1000);
 
-          const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, DRAW_POINT_NUM);
+          const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
           const args = {
             // pointNum: DRAW_POINT_NUM,
             width: sceneWidth,
             height: sceneHeight,
-            sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL,
-            maxRayDepth: MAX_RAY_DEPTH,
+            sampleNumPerPixel,
+            maxRayDepth,
             updatePixelIndexes
           };
 
@@ -1615,7 +1614,6 @@
     // const MAX_WORKER_NUM = 1;
     // const MAX_RAY_DEPTH = 32;
 
-
     const canvas = document.querySelector(".js-canvas");
 
     const sceneWidth = CANVAS_WIDTH;
@@ -1631,11 +1629,17 @@
     const raytraceRenderer = new RaytraceRenderer({ gpu });
     
     const start = () => {
-      const updateIndexOrder = ArrayUtilities.shuffle(
+      const orderedPixelIndexes = ArrayUtilities.shuffle(
         [...new Array(sceneWidth * sceneHeight)].map((_, i) => i)
       );
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
-      raytraceRenderer.start(updateIndexOrder);
+      raytraceRenderer.start({
+        orderedPixelIndexes,
+        maxWorkerNum: MAX_WORKER_NUM,
+        drawPointNum: DRAW_POINT_NUM,
+        sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL,
+        maxRayDepth: MAX_RAY_DEPTH,
+      });
     }
 
     // const tick = (time) => {
