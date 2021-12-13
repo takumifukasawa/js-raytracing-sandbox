@@ -65,18 +65,12 @@
       }
     }
 
-    class Wait {
-      #msec
-      constructor(msec) {
-        this.#msec = msec;
-      }
-      exec() {
-        return new Promise(resolve => {
-          window.setTimeout(() => {
-            resolve();
-          }, this.#msec);
-        });
-      }
+    const wait = (msec) => {
+      return new Promise(resolve => {
+        window.setTimeout(() => {
+          resolve();
+        }, msec);
+      });
     }
 
     class Vector3 {
@@ -186,6 +180,11 @@
         return this;
       }
 
+      isNearZero() {
+        const eps = 0.00001;
+        return Math.abs(this.x) < eps && Math.abs(this.y) < eps && Math.abs(this.z) < eps;
+      }
+
       static get zero() {
         return new Vector3(0, 0, 0);
       }
@@ -223,6 +222,14 @@
           a.y * b.z - a.z * b.y,
           a.z * b.x - a.x * b.z,
           a.x * b.y - a.y * b.x
+        );
+      }
+
+      static reflect(v, n) {
+        const VoN = Vector3.dotVectors(v, n);
+        return Vector3.subVectors(
+          v,
+          n.clone().mulScalar(2 * VoN)
         );
       }
 
@@ -1153,8 +1160,9 @@
             pointGeometry.updateAttribute('color', colors.flat());
 
             // 負荷対策でちょっと間引く
-            await new Wait(1000 / 60).exec();
-            // await new Wait(1000).exec();
+            await wait(1000 / 60);
+            // for debug
+            // await wait(1000);
 
             const workerArgs = buildWorkerArgs();
 
@@ -1229,7 +1237,7 @@
       }
     }
 
-    class HittableSphere extends BaseHittableGeometry {
+    class HittableSphereGeometry extends BaseHittableGeometry {
       #center;
       #radius;
       #material;
@@ -1325,7 +1333,12 @@
         let normal = Vector3.subVectors(position, this.#center).divScalar(this.#radius).normalize();
         normal = BaseHittableGeometry.setFaceNormal(ray, normal);
 
-        return new HitInfo({ distance, position, normal });
+        return new HitInfo({
+          distance,
+          position,
+          normal,
+          material: this.#material
+        });
       }
     }
 
@@ -1360,14 +1373,69 @@
       }
     }
 
-    class BaseHittableMaterial {
+    class BaseRaytraceMaterial {
       constructor() {}
-      scatter(ray, hitInfo, attenuation, scatterdRay) {
+      scatter(inRay, hitInfo) {
         throw "should implement method";
       }
     }
 
+    class SurfaceInfo {
+      #attenuation;
+      #scatteredRay;
+      get attenuation() {
+        return this.#attenuation;
+      }
+      get scatteredRay() {
+        return this.#scatteredRay;
+      }
+      constructor(attenuation, scatteredRay) {
+        this.#attenuation = attenuation;
+        this.#scatteredRay = scatteredRay;
+      }
+    }
 
+    class RaytraceLambertianMaterial extends BaseRaytraceMaterial {
+      #albedo;
+
+      constructor(albedo) {
+        super();
+        this.#albedo = albedo;
+      }
+
+      // TODO: scatterDirectionのnormalizeが必要な気がする
+      scatter(inRay, hitInfo) {
+        const scatterDirection = Vector3.addVectors(
+          hitInfo.normal,
+          Vector3.randomUnitSphere()
+        );
+        if(scatterDirection.isNearZero()) {
+          scatterDirection = hitInfo.normal;
+        }
+        const scatteredRay = new Ray(hitInfo.position, scatterDirection);
+        const attenuation = this.#albedo;
+        return new SurfaceInfo(attenuation, scatteredRay);
+      }
+    }
+
+    class RaytraceMetalMaterial extends BaseRaytraceMaterial {
+      #albedo;
+
+      constructor(albedo) {
+        super();
+        this.#albedo = albedo;
+      }
+
+      // TODO: reflectedのnormalizeが必要な気がする
+      scatter(inRay, hitInfo) {
+        const reflected = Vector3.reflect(inRay.direction, hitInfo.normal);
+        const scatteredRay = new Ray(hitInfo.position, reflected);
+        const attenuation = this.#albedo;
+        return Vector3.dotVectors(scatteredRay.direction, hitInfo.normal) > 0
+          ? new SurfaceInfo(attenuation, scatteredRay)
+          : null;
+      }
+    }
   </script>
 
   <script id="worker-script">
@@ -1396,14 +1464,17 @@
         }
         const hitInfo = world.hit(ray, 0.001, Infinity);
         if(hitInfo) {
-          const target = Vector3.zero
-            .add(hitInfo.position)
-            .add(Vector3.randomInHemisphere(hitInfo.normal))
-          return getRayColor(
-            new Ray(hitInfo.position, Vector3.subVectors(target, hitInfo.position)),
-            world,
-            depth - 1
-          ).mulScalar(0.5);
+          const surfaceInfo = hitInfo.material.scatter(ray, hitInfo);
+          // console.log(surfaceInfo)
+          if(surfaceInfo) {
+            return getRayColor(
+              surfaceInfo.scatteredRay,
+              world,
+              depth - 1
+            ).mul(surfaceInfo.attenuation);
+          } else {
+            return Vector3.zero;
+          }
         }
         const rayDir = ray.direction.normalize();
         const t = 0.5 * (rayDir.y + 1.0);
@@ -1412,9 +1483,33 @@
           .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
       }
 
+      const materialGround = new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0));
+      const materialCenter = new RaytraceLambertianMaterial(new Vector3(0.7, 0.3, 0.3));
+      const materialLeft = new RaytraceMetalMaterial(new Vector3(0.8, 0.8, 0.8));
+      const materialRight = new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2));
+
       const world = new HittableGeometryList();
-      world.add(new HittableSphere(new Vector3(0, 0, 0), 0.5));
-      world.add(new HittableSphere(new Vector3(0, -100.5, 0), 100))
+      world.add(new HittableSphereGeometry(
+        new Vector3(0, -100.5, 0),
+        100,
+        materialGround
+      ));
+      world.add(new HittableSphereGeometry(
+        new Vector3(0, 0, 0),
+        0.5,
+        materialCenter
+      ));
+      world.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        0.5,
+        materialLeft
+      ));
+      world.add(new HittableSphereGeometry(
+        new Vector3(1.0, 0, 0),
+        0.5,
+        materialRight
+      ));
+
 
       const positions = ([...new Array(pointNum)].map((_, i) => {
         // ピクセル座標
@@ -1470,6 +1565,14 @@
     const SAMPLE_NUM_PER_PIXEL = 64;
     const MAX_WORKER_NUM = 8;
     const MAX_RAY_DEPTH = 64;
+    // constants for debug
+    // const CANVAS_WIDTH = 320;
+    // const CANVAS_HEIGHT = 180;
+    // const DRAW_POINT_NUM = 128;
+    // const SAMPLE_NUM_PER_PIXEL = 4;
+    // const MAX_WORKER_NUM = 1;
+    // const MAX_RAY_DEPTH = 32;
+
 
     const canvas = document.querySelector(".js-canvas");
 
