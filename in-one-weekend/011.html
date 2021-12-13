@@ -46,6 +46,18 @@
       }
     }
 
+    class ArrayUtilities {
+      static shuffle(arr) {
+        for(let i = arr.length - 1; i >= 0; i--) {
+          const lastIndex = i;
+          const targetIndex = Math.floor(Math.random() * arr.length);
+          let tmp = arr[targetIndex];
+          arr[targetIndex] = arr[lastIndex];
+          arr[lastIndex] = tmp;
+        }
+      }
+    }
+
     class FunctionWorker extends Worker {
       constructor(src) {
         const match = src.toString().match(/^.*\{.*\}$/gi);
@@ -992,6 +1004,7 @@
       #renderer;
       #renderTarget;
       #pointMesh;
+      #pointGeometry;
       #fullQuadMesh;
 
       constructor({ gpu }) {
@@ -1103,7 +1116,7 @@
           uniforms: {},
           primitiveType: GLMaterial.PrimitiveType.Points });
 
-        const pointGeometry = new GLGeometry({
+        this.#pointGeometry = new GLGeometry({
           gpu,
           attributes: [
             {
@@ -1125,7 +1138,14 @@
           ]
         });
 
-        // 本当は外から渡したい
+        this.#pointMesh = new GLMesh({
+          material: pointMaterial,
+          geometry: this.#pointGeometry,
+        });
+      }
+
+      init(updateIndexOrder) {
+        // NOTE: 本当は外から渡したい
         const utilitiesScript = document.querySelector("#utilities-script").textContent;
         const workerScript = document.querySelector("#worker-script").textContent;
         const webglScript = document.querySelector("#webgl-script").textContent;
@@ -1139,6 +1159,10 @@
         ]);
         const blobUrl = window.URL.createObjectURL(scriptBlob);
 
+        const threadNum = Math.min(MAX_WORKER_NUM, window.navigator.hardwareConcurrency);
+
+        // let updatePixelIndex = 0;
+
         const buildWorkerArgs = () => {
           return {
             pointNum: DRAW_POINT_NUM,
@@ -1149,15 +1173,13 @@
           }
         }
 
-        const threadNum = Math.min(MAX_WORKER_NUM, window.navigator.hardwareConcurrency);
-
         for(let i = 0; i < threadNum; i++) {
           const worker = new Worker(blobUrl);
 
           worker.onmessage = async (e) => {
             const [{ positions, colors }] = e.data;
-            pointGeometry.updateAttribute('position', positions.flat());
-            pointGeometry.updateAttribute('color', colors.flat());
+            this.#pointGeometry.updateAttribute('position', positions.flat());
+            this.#pointGeometry.updateAttribute('color', colors.flat());
 
             // 負荷対策でちょっと間引く
             await wait(1000 / 60);
@@ -1174,11 +1196,6 @@
           }
           worker.postMessage([buildWorkerArgs()]);
         }
-
-        this.#pointMesh = new GLMesh({
-          material: pointMaterial,
-          geometry: pointGeometry,
-        });
       }
 
       setSize(width, height) {
@@ -1586,19 +1603,28 @@
       canvas,
     });
 
-    const renderer = new RaytraceRenderer({ gpu });
+    const raytraceRenderer = new RaytraceRenderer({ gpu });
     
-    const setSize = () => {
-      renderer.setSize(sceneWidth, sceneHeight);
+    const start = () => {
+      const updateIndexOrder = ArrayUtilities.shuffle(
+        [...new Array(sceneWidth * sceneHeight)].map((_, i) => i)
+      );
+      raytraceRenderer.setSize(sceneWidth, sceneHeight);
+      raytraceRenderer.init(updateIndexOrder);
     }
 
     const tick = (time) => {
-      renderer.render();
+      raytraceRenderer.render();
       requestAnimationFrame(tick);
     }
 
-    setSize();
-    window.addEventListener('resize', () => setSize());
+    // 今は使わない
+    // const setSize = () => {
+    //   start();
+    // }
+    // window.addEventListener('resize', () => setSize());
+
+    start();
     requestAnimationFrame(tick);
   </script>
 </body>
