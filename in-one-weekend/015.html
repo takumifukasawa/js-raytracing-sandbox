@@ -1199,6 +1199,7 @@
           // for debug
           // await wait(1000);
 
+          // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
           const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
           const args = {
             width: sceneWidth,
