@@ -1056,6 +1056,19 @@
       }
 
       setSize(aspect) {
+        /*
+         *     /
+         *    /
+         *   /|
+         *  / | h
+         * /  |
+         * -------- z axis
+         * \  theta / 2
+         *  \ 
+         *   \
+         *    \ 
+         *     \ 
+         */
         const theta = MathUtilities.degreesToRadians(this.fov);
         const h = Math.tan(theta / 2);
         this.#height = 2.0 * h;
