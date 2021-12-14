@@ -44,6 +44,15 @@
       static saturate(value) {
         MathUtilities.clamp(value, 0, 1);
       }
+      // フレネルの反射係数を計算
+      // fr: フレネルの反射係数
+      // f0: 表面に対して垂直に光が入射したときのフレネル反射係数
+      // フレネルの方程式のshlickの近似式. 偏光されてない場合は良く使われるらしい
+      static shclick(cos, ri) {
+        const f0 = Math.pow(((1.0 - ri) / (1.0 + ri)), 2);
+        const fr = f0 + Math.pow((1.0 - f0) * (1.0 - cos), 5);
+        return fr;
+      }
     }
 
     class ArrayUtilities {
@@ -1559,31 +1568,48 @@
         const attenuation = Vector3.one;
 
         /**
+         * スネルの法則 
+         * sinθ1 = (ir1 / ir12) * sinθ2
+         * 
          * ir ... 屈折率
+         * 
+         * ir1 < ir2 の場合 ... sinθ2 は 0~1 の範囲
+         * ir1 > ir2 の場合 ... sinθ1 が大きいと sinθ2 > 1 となる = 反射光のみ = 全反射
+         * 誘導体 ... 屈折する物体
+         * 
          * ex)
          * 空気の屈折率は1.0
          * ガラスの屈折率は1.5
          * 空気からガラスに入る場合は 1.0 => 1.5 の物質に入るので 1.0 / 1.5となる
+         * 
+         * 今回は屈折前後のどちらかは空気想定
          */
+
         const refractionRatio = hitInfo.isFrontFace ? (1.0 / this.#ir) : this.#ir;
 
         const unitDirection = inRay.direction.clone().normalize();
 
+        /*
+         * 内積よりスネルの法則に必要なsinを取得できる
+         * sinTheta = sqrt(1 - cosTheta * cosTheta) // 三角関数の公式
+         * cosTheta = -inRay dot normal
+         */
+
+        // 法線と、反転した入射ベクトルの内積
         const cosTheta = Math.min(
           Vector3.dotVectors(unitDirection.clone().negate(), hitInfo.normal)
         );
+
+        // sinθ1
         const sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
 
+        // 1以上の場合は全反射
         const cannotRefract = refractionRatio * sinTheta > 1;
 
-        /**
-         * sinθ1 = (e1 / e2) * sinθ2
-         * e1 < e2 の場合 ... sinθ2 は 0~1 の範囲
-         * e1 > e2 の場合 ... sinθ1 が大きいと sinθ2 > 1 となる = 反射光のみ = 全反射
-         * 誘導体 ... 屈折する物体
-         */
-
-        const refractedDir = cannotRefract
+        const refractedDir = (
+            cannotRefract ||
+            MathUtilities.shclick(cosTheta, refractionRatio) > Math.random()
+          )
           ? Vector3.reflect(unitDirection, hitInfo.normal)
           : Vector3.refract(unitDirection, hitInfo.normal, refractionRatio);
 
@@ -1640,31 +1666,32 @@
           .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
       }
 
-      const materialGround = new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0));
-      const materialCenter = new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5));
-      const materialLeft = new RaytraceDielectricMaterial(1.5);
-      const materialRight = new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0);
-
       const world = new HittableGeometryList();
+
       world.add(new HittableSphereGeometry(
         new Vector3(0, -100.5, 0),
         100,
-        materialGround
+        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
       ));
       world.add(new HittableSphereGeometry(
         new Vector3(0, 0, 0),
         0.5,
-        materialCenter
+        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
       ));
       world.add(new HittableSphereGeometry(
         new Vector3(-1.0, 0, 0),
         0.5,
-        materialLeft
+        new RaytraceDielectricMaterial(1.5)
+      ));
+      world.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        -0.4,
+        new RaytraceDielectricMaterial(1.5)
       ));
       world.add(new HittableSphereGeometry(
         new Vector3(1.0, 0, 0),
         0.5,
-        materialRight
+        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
       ));
 
       const positions = updatePixelIndexes.map(i => {
