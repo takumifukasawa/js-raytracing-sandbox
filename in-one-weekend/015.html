@@ -138,6 +138,13 @@
         return this;
       }
 
+      subScalar(s) {
+        this.x -= s;
+        this.y -= s;
+        this.z -= s;
+        return this;
+      }
+
       mul(v) {
         this.x *= v.x;
         this.y *= v.y;
@@ -248,22 +255,45 @@
         );
       }
 
-      static refract(uv, n, etaiOverEtat) {
-        const cosTheta = Math.min(
-          Vector3.dotVectors(uv.clone().negate(), n),
-          1.0
-        );
-        const rOutPerp = Vector3
-          .addVectors(
-            uv,
-            Vector3.mulVectorScalar(n, cosTheta)
-          )
-          .mulScalar(etaiOverEtat);
-        const rOutParallel = Vector3.mulVectorScalar(
-          n,
-          -Math.sqrt(Math.abs(1.0 - rOutPerp.lengthSquared()))
-        );
-        return Vector3.addVectors(rOutPerp, rOutParallel);
+      static refract(inV, n, eta) {
+        // const cosTheta = Math.min(
+        //   Vector3.dotVectors(inV.clone().negate(), n),
+        //   1.0
+        // );
+        // const rOutPerp = Vector3
+        //   .addVectors(
+        //     inV,
+        //     Vector3.mulVectorScalar(n, cosTheta)
+        //   )
+        //   .mulScalar(eta);
+        // const rOutParallel = Vector3.mulVectorScalar(
+        //   n,
+        //   -Math.sqrt(Math.abs(1.0 - rOutPerp.lengthSquared()))
+        // );
+        // return Vector3.addVectors(rOutPerp, rOutParallel);
+
+        /**
+         * refs: https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/refract.xhtml
+         * 
+         * const k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I));
+         * if(k < 0) {
+         *   return Vector3.zero;
+         * } else {
+         *   return eta * I - (eta * dot(N, I) + sqrt(k)) * N;
+         * }
+         */
+
+        const nDotV = Vector3.dotVectors(n, inV);
+        const k = 1.0 - eta * eta * (1.0 - nDotV * nDotV);
+        if(k < 0) {
+          return Vector3.zero;
+        } else {
+          const dir = Vector3.subVectors(
+            Vector3.mulVectorScalar(inV, eta),
+            Vector3.mulVectorScalar(n, eta * nDotV + Math.sqrt(k))
+          ).normalize();
+          return dir;
+        }
       }
 
       static copy(v) {
@@ -278,6 +308,7 @@
         );
       }
 
+      // ref: https://wasan.hatenablog.com/entry/2014/01/14/060137
       // 単位球内のランダムなベクトル
       static randomInUnitSphere() {
         const r = Math.cbrt(Math.random());
@@ -1508,13 +1539,14 @@
           .normalize();
         const scatteredRay = new Ray(hitInfo.position, fuzzyReflected);
         const attenuation = this.#albedo;
+        // 反射ベクトルと法線の角度が0以上の時は反射情報を返す
         return Vector3.dotVectors(scatteredRay.direction, hitInfo.normal) > 0
           ? new SurfaceInfo(attenuation, scatteredRay)
           : null;
       }
     }
 
-    class RaytraceDielectric extends BaseRaytraceMaterial {
+    class RaytraceDielectricMaterial extends BaseRaytraceMaterial {
       #ir;
       constructor(ir) {
         super();
@@ -1578,8 +1610,8 @@
       }
 
       const materialGround = new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0));
-      const materialCenter = new RaytraceDielectric(1.5);
-      const materialLeft = new RaytraceDielectric(1.5);
+      const materialCenter = new RaytraceDielectricMaterial(1.5);
+      const materialLeft = new RaytraceDielectricMaterial(1.5);
       const materialRight = new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 1.0);
 
       const world = new HittableGeometryList();
@@ -1660,6 +1692,7 @@
     const SAMPLE_NUM_PER_PIXEL = 128;
     const MAX_WORKER_NUM = 8;
     const MAX_RAY_DEPTH = 64;
+
     // constants for debug
     // const CANVAS_WIDTH = 320;
     // const CANVAS_HEIGHT = 180;
