@@ -255,14 +255,14 @@
         );
       }
 
-      static refract(inV, n, eta) {
+      static refract(v, n, eta) {
         // const cosTheta = Math.min(
-        //   Vector3.dotVectors(inV.clone().negate(), n),
+        //   Vector3.dotVectors(v.clone().negate(), n),
         //   1.0
         // );
         // const rOutPerp = Vector3
         //   .addVectors(
-        //     inV,
+        //     v,
         //     Vector3.mulVectorScalar(n, cosTheta)
         //   )
         //   .mulScalar(eta);
@@ -283,13 +283,13 @@
          * }
          */
 
-        const nDotV = Vector3.dotVectors(n, inV);
+        const nDotV = Vector3.dotVectors(n, v);
         const k = 1.0 - eta * eta * (1.0 - nDotV * nDotV);
         if(k < 0) {
           return Vector3.zero;
         } else {
           const dir = Vector3.subVectors(
-            Vector3.mulVectorScalar(inV, eta),
+            Vector3.mulVectorScalar(v, eta),
             Vector3.mulVectorScalar(n, eta * nDotV + Math.sqrt(k))
           ).normalize();
           return dir;
@@ -1524,7 +1524,7 @@
 
     class RaytraceMetalMaterial extends BaseRaytraceMaterial {
       #albedo;
-      #fuzzy;
+      #fuzzy; // 0~1: 1であればあるほど鏡面に近づく
 
       constructor(albedo, fuzzy) {
         super();
@@ -1540,6 +1540,7 @@
         const scatteredRay = new Ray(hitInfo.position, fuzzyReflected);
         const attenuation = this.#albedo;
         // 反射ベクトルと法線の角度が0以上の時は反射情報を返す
+        // でもほぼ必ずそうなるはず？
         return Vector3.dotVectors(scatteredRay.direction, hitInfo.normal) > 0
           ? new SurfaceInfo(attenuation, scatteredRay)
           : null;
@@ -1548,16 +1549,46 @@
 
     class RaytraceDielectricMaterial extends BaseRaytraceMaterial {
       #ir;
+
       constructor(ir) {
         super();
         this.#ir = ir;
       }
+
       scatter(inRay, hitInfo) {
         const attenuation = Vector3.one;
+
+        /**
+         * ir ... 屈折率
+         * ex)
+         * 空気の屈折率は1.0
+         * ガラスの屈折率は1.5
+         * 空気からガラスに入る場合は 1.0 => 1.5 の物質に入るので 1.0 / 1.5となる
+         */
         const refractionRatio = hitInfo.isFrontFace ? (1.0 / this.#ir) : this.#ir;
+
         const unitDirection = inRay.direction.clone().normalize();
-        const refracted = Vector3.refract(unitDirection, hitInfo.normal, refractionRatio);
-        const scatteredRay = new Ray(hitInfo.position, refracted);
+
+        const cosTheta = Math.min(
+          Vector3.dotVectors(unitDirection.clone().negate(), hitInfo.normal)
+        );
+        const sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
+
+        const cannotRefract = refractionRatio * sinTheta > 1;
+
+        /**
+         * sinθ1 = (e1 / e2) * sinθ2
+         * e1 < e2 の場合 ... sinθ2 は 0~1 の範囲
+         * e1 > e2 の場合 ... sinθ1 が大きいと sinθ2 > 1 となる = 反射光のみ = 全反射
+         * 誘導体 ... 屈折する物体
+         */
+
+        const refractedDir = cannotRefract
+          ? Vector3.reflect(unitDirection, hitInfo.normal)
+          : Vector3.refract(unitDirection, hitInfo.normal, refractionRatio);
+
+        const scatteredRay = new Ray(hitInfo.position, refractedDir);
+
         return new SurfaceInfo(attenuation, scatteredRay);
       }
     }
@@ -1591,7 +1622,6 @@
         const hitInfo = world.hit(ray, 0.001, Infinity);
         if(hitInfo) {
           const surfaceInfo = hitInfo.material.scatter(ray, hitInfo);
-          // console.log(surfaceInfo)
           if(surfaceInfo) {
             return getRayColor(
               surfaceInfo.scatteredRay,
@@ -1599,6 +1629,7 @@
               depth - 1
             ).mul(surfaceInfo.attenuation);
           } else {
+            // fall back
             return Vector3.zero;
           }
         }
@@ -1610,9 +1641,9 @@
       }
 
       const materialGround = new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0));
-      const materialCenter = new RaytraceDielectricMaterial(1.5);
+      const materialCenter = new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5));
       const materialLeft = new RaytraceDielectricMaterial(1.5);
-      const materialRight = new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 1.0);
+      const materialRight = new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0);
 
       const world = new HittableGeometryList();
       world.add(new HittableSphereGeometry(
@@ -1660,7 +1691,7 @@
         return Math.pow(v, 1 / 2.2)
       }
 
-      const colors = positions.map(p => {
+      const colors = positions.lap(p => {
         const x = p[0];
         const y = p[1];
         const accColor = Vector3.zero;
