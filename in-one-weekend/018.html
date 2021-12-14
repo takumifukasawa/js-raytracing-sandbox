@@ -1038,24 +1038,31 @@
 
     class Camera {
       position;
-      direction;
+      lookAt;
+      aspect;
       fov;
-      #width;
-      #height;
+      #direction;
+      #horizontal;
+      #vertical;
 
       constructor(
-        fov,
-        aspect = 1,
-        position = Vector3.zero,
-        direction = Vector3.zero
+        position,
+        lookAt,
+        up,
+        fov, // degree
+        aspect,
       ) {
+        this.position = position;
+        this.lookAt = lookAt;
+        this.up = up;
         this.fov = fov;
-        this.setSize(aspect);
-        this.position = position || Vector3.zero;
-        this.direction = direction || Vector3.zero;
+        this.aspect = aspect;
+
+        // manually once update
+        this.updateCameraVectors();
       }
 
-      setSize(aspect) {
+      updateCameraVectors() {
         /*
          *     /
          *    /
@@ -1071,13 +1078,36 @@
          */
         const theta = MathUtilities.degreesToRadians(this.fov);
         const h = Math.tan(theta / 2);
-        this.#height = 2.0 * h;
-        this.#width = this.#height * aspect;
+        const height = 2.0 * h;
+        const width = height * this.aspect;
+
+        const w = Vector3.subVectors(this.position, this.lookAt).normalize();
+        const u = Vector3.crossVectors(this.up, w).normalize();
+        const v = Vector3.crossVectors(w, u).normalize();
+ 
+        this.#horizontal = Vector3.mulVectorScalar(u, width);
+        this.#vertical = Vector3.mulVectorScalar(v, height);
+        // wは注視点からみたカメラの方向なので反転
+        this.#direction = w.negate();
+
+        // for debu
+        // console.log("===========");
+        // console.log("width", width)
+        // console.log("height", height)
+        // console.log("u", u)
+        // console.log("v", v)
+        // console.log("w", w)
+        // console.log("horizontal", this.#horizontal)
+        // console.log("vertical", this.#vertical)
+        // console.log("direction", this.#direction)
       }
 
       getRay(x, y) {
-        const dir = new Vector3(this.#width * x, this.#height * y, 0)
-          .add(this.direction.clone())
+        const dir = 
+          Vector3.zero
+            .add(this.#horizontal.clone().mulScalar(x))
+            .add(this.#vertical.clone().mulScalar(y))
+            .add(this.#direction)
           .normalize();
         const ray = new Ray(this.position, dir);
         return ray;
@@ -1661,10 +1691,13 @@
         updatePixelIndexes
       }] = e.data;
 
-      const camera = new Camera(60);
-      camera.setSize(width / height);
-      camera.position = new Vector3(0, 0, 1);
-      camera.direction = new Vector3(0, 0, -1);
+      const camera = new Camera(
+        new Vector3(-1, 1, 4),
+        new Vector3(0.2, -0.2, -1),
+        new Vector3(0, 1, 0),
+        20,
+        width / height
+      );
 
       const getRayColor = (ray, world, depth) => {
         if(depth <= 0) {
@@ -1779,10 +1812,10 @@
     // constants for debug
     // const CANVAS_WIDTH = 320;
     // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 1;
-    // const SAMPLE_NUM_PER_PIXEL = 4;
+    // const DRAW_POINT_NUM = 1024;
+    // const SAMPLE_NUM_PER_PIXEL = 1;
     // const MAX_WORKER_NUM = 1;
-    // const MAX_RAY_DEPTH = 32;
+    // const MAX_RAY_DEPTH = 64;
 
     const canvas = document.querySelector(".js-canvas");
 
