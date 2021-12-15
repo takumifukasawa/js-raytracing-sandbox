@@ -1039,7 +1039,8 @@
 
       constructor(origin, direction) {
         this.#origin = origin;
-        this.#direction = direction.normalize();
+        // this.#direction = direction.normalize();
+        this.#direction = direction;
       }
 
       at(t) {
@@ -1166,19 +1167,36 @@
         //     .add(this.#direction.clone().mulScalar(1))
         //     .normalize();
  
-        const lensRadius = this.aperture / 2;
-        const rd = lensRadius * Vector3.randomInUnitDisk();
-        const offset = Vector3.addVectors(this.#u * rd.x, this.#v * rd.y);
-  
+        // const lensRadius = this.aperture / 2;
+        // const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
+        // const offset = Vector3.addVectors(
+        //   Vector3.mulVectorScalar(this.#u, rd.x),
+        //   Vector3.mulVectorScalar(this.#v, rd.y)
+        // ); 
+        // const dir = 
+        //   Vector3.zero
+        //     .add(this.#horizontal.clone().mulScalar(x))
+        //     .add(this.#vertical.clone().mulScalar(y))
+        //     .add(this.#direction.clone().mulScalar(this.focusDist))
+        //     // .normalize();
+        //   
+        //     // dir.log();
+
+        // const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
+        // const offset = Vector3.addVectors(
+        //   Vector3.mulVectorScalar(this.#u, rd.x),
+        //   Vector3.mulVectorScalar(this.#v, rd.y)
+        // );
         const dir = 
           Vector3.zero
             .add(this.#horizontal.clone().mulScalar(x))
             .add(this.#vertical.clone().mulScalar(y))
             .add(this.#direction.clone().mulScalar(1))
             .normalize();
-
+ 
         const ray = new Ray(
-          this.position.clone().add(offset),
+          // this.position.clone().add(offset),
+          this.position,
           dir
         );
         return ray;
@@ -1762,9 +1780,9 @@
         updatePixelIndexes
       }] = e.data;
 
-      const cameraPosition = new Vector3(-1, 1, 4);
-      const cameraLookAt = new Vector3(0.2, -0.2, -1);
-      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt);
+      const cameraPosition = new Vector3(3, 3, 2);
+      const cameraLookAt = new Vector3(0, 0, 0);
+      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
       const camera = new Camera(
         cameraPosition,
         cameraLookAt,
@@ -1888,7 +1906,7 @@
     // constants for debug
     // const CANVAS_WIDTH = 320;
     // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 1024;
+    // const DRAW_POINT_NUM = 128;
     // const SAMPLE_NUM_PER_PIXEL = 1;
     // const MAX_WORKER_NUM = 1;
     // const MAX_RAY_DEPTH = 64;
