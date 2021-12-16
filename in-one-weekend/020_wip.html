@@ -226,12 +226,20 @@
         return new Vector3(1, 1, 1);
       }
 
-      static addVectors(a, b) {
-        return new Vector3(a.x + b.x, a.y + b.y, a.z + b.z);
+      static addVectors(...args) {
+        const v = args[0].clone();
+        for(let i = 1; i < args.length; i++) {
+          v.add(args[i]);
+        }
+        return v;
       }
 
-      static subVectors(a, b) {
-        return new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
+      static subVectors(...args) {
+        const v = args[0].clone();
+        for(let i = 1; i < args.length; i++) {
+          v.sub(args[i]);
+        }
+        return v;
       }
 
       static mulVectors(a, b) {
@@ -1067,6 +1075,7 @@
       #u;
       #v;
       #w;
+      #lowerLeftCorner;
 
       constructor(
         position,
@@ -1116,6 +1125,14 @@
         this.#vertical = Vector3.mulVectorScalar(this.#v, height);
         // wは注視点からみたカメラの方向なので反転
         this.#direction = this.#w.negate();
+
+        // this.#lowerLeftCorner = Vector3.subVectors(
+        //   this.position,
+        //   // this.#horizontal.divScalar(2),
+        //   // this.#vertical.divScalar(2),
+        //   this.#w
+        //   // this.#w.mulScalar(this.focusDist)
+        // );
 
         // for debug
         // console.log("===========");
@@ -1187,18 +1204,32 @@
         //   Vector3.mulVectorScalar(this.#u, rd.x),
         //   Vector3.mulVectorScalar(this.#v, rd.y)
         // );
+
+        // base
         const dir = 
           Vector3.zero
             .add(this.#horizontal.clone().mulScalar(x))
             .add(this.#vertical.clone().mulScalar(y))
             .add(this.#direction.clone().mulScalar(1))
             .normalize();
- 
         const ray = new Ray(
-          // this.position.clone().add(offset),
           this.position,
           dir
         );
+
+        // const lensRadius = this.aperture / 2;
+        // const dir = Vector3.randomInUnitDisk().mulScalar(lensRadius);
+
+         // const dir = Vector3
+         //   .addVectors(
+         //     this.#horizontal.mulScalar(x),
+         //     this.#vertical.mulScalar(y),
+         //   )
+         //   .sub(this.position)
+         //   .normalize()
+         // console.log(dir)
+         // const ray = new Ray(this.position, dir);
+ 
         return ray;
       }
     }
