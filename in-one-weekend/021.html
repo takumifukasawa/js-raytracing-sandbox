@@ -176,6 +176,13 @@
         return new Vector3(this.x, this.y, this.z);
       }
 
+      copy(v) {
+        this.x = v.x;
+        this.y = v.y;
+        this.z = v.z;
+        return this;
+      }
+
       normalize() {
         const len = this.length();
         this.x /= len;
@@ -1828,7 +1835,61 @@
         updatePixelIndexes
       }] = e.data;
 
-      const getRayColor = (ray, scene, depth) => {
+      // const getSceneColor = (ray, scene, depth) => {
+      //   const resultColor = Vector3.one;
+      //   let currentRay = ray;
+
+      //   // console.log("==========")
+
+      //   for(let i = depth; i > 0; i--) {
+      //     const hitInfo = HittableGeometryList.hit(
+      //       scene.hitObjects,
+      //       currentRay,
+      //       0.001,
+      //       Infinity
+      //     );
+
+      //     if(i === depth && !hitInfo) {
+      //       // console.log("first ray: no hit");
+      //       const rayDir = currentRay.direction.normalize();
+      //       const t = 0.5 * (rayDir.y + 1.0);
+      //       resultColor.copy(
+      //         new Vector3(1.0, 1.0, 1.0)
+      //           .mulScalar(1.0 - t)
+      //           .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t))
+      //       );
+      //       break;
+      //     }
+
+      //     if(hitInfo) {
+      //       const surfaceInfo =
+      //         BaseRaytraceMaterial
+      //           .getMaterialClass(hitInfo.material.type)
+      //           .scatter(hitInfo.material, currentRay, hitInfo);
+      //       // console.log("hit info");
+      //       // console.log(hitInfo);
+      //       if(surfaceInfo) {
+      //         // console.log("hit surface info");
+      //         // console.log(surfaceInfo)
+      //         currentRay = surfaceInfo.scatteredRay;
+      //         resultColor.mul(surfaceInfo.attenuation);
+      //         continue;
+      //       } else {
+      //         // console.log("no surface info");
+      //         // fall back
+      //         resultColor.copy(Vector3.zero);
+      //         break;
+      //       }
+      //     }
+
+      //     // console.log("no hit info");
+      //     break;
+      //   }
+
+      //   return resultColor;
+      // }
+
+      const getSceneColor = (ray, scene, depth) => {
         if(depth <= 0) {
           return Vector3.zero;
         }
@@ -1844,7 +1905,7 @@
               .getMaterialClass(hitInfo.material.type)
               .scatter(hitInfo.material, ray, hitInfo);
           if(surfaceInfo) {
-            return getRayColor(
+            return getSceneColor(
               surfaceInfo.scatteredRay,
               scene,
               depth - 1
@@ -1893,7 +1954,7 @@
           const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
           const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
           const ray = Camera.getRay(camera, x + addX, y + addY);
-          const currentColor = getRayColor(ray, scene, maxRayDepth);
+          const currentColor = getSceneColor(ray, scene, maxRayDepth);
           accColor.x += gamma(currentColor.x);
           accColor.y += gamma(currentColor.y);
           accColor.z += gamma(currentColor.z);
