@@ -1818,16 +1818,16 @@
         updatePixelIndexes
       }] = e.data;
 
-      const cameraPosition = new Vector3(3, 3, 2);
+      const cameraPosition = new Vector3(0, 0.5, 2);
       const cameraLookAt = new Vector3(0, 0, 0);
       const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
       const camera = new Camera(
         cameraPosition,
         cameraLookAt,
         new Vector3(0, 1, 0), // up
-        20, // fov
+        60, // fov
         width / height, // aspect
-        2.0, // aperture
+        0.0, // aperture
         distToFocus
       );
 
