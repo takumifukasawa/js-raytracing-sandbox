@@ -1144,6 +1144,7 @@
             this.#direction.clone().mulScalar(this.focusDist)
           )
           .sub(offset)
+          // NOTE: normalizeしておいた方がいい気がする
           // .normalize()
 
         const ray = new Ray(from, dir);
@@ -1738,7 +1739,7 @@
         new Vector3(0, 1, 0), // up
         20, // fov
         width / height, // aspect
-        2.0, // aperture
+        1.0, // aperture
         distToFocus
       );
 
