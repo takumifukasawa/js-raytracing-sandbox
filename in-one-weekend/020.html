@@ -57,9 +57,9 @@
 
     class ArrayUtilities {
       static shuffle(arr) {
-        for(let i = arr.length - 1; i >= 0; i--) {
+        for(let i = arr.length - 1; i > 0; i--) {
           const lastIndex = i;
-          const targetIndex = Math.floor(Math.random() * arr.length);
+          const targetIndex = Math.floor(Math.random() * lastIndex);
           let tmp = arr[targetIndex];
           arr[targetIndex] = arr[lastIndex];
           arr[lastIndex] = tmp;
@@ -1083,7 +1083,7 @@
         up,
         fov, // 画角: degree
         aspect,
-        aperture, // 絞り
+        aperture, // 絞り: 0だと全てにピント合ってる状態
         focusDist // 焦点距離
       ) {
         this.position = position;
@@ -1818,7 +1818,7 @@
         updatePixelIndexes
       }] = e.data;
 
-      const cameraPosition = new Vector3(0, 0, 2);
+      const cameraPosition = new Vector3(3, 3, 2);
       const cameraLookAt = new Vector3(0, 0, 0);
       const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
       const camera = new Camera(
@@ -1827,7 +1827,7 @@
         new Vector3(0, 1, 0), // up
         60, // fov
         width / height, // aspect
-        0.0, // aperture
+        1.0, // aperture
         distToFocus
       );
 
