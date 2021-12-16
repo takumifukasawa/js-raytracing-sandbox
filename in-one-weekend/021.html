@@ -1835,91 +1835,45 @@
         updatePixelIndexes
       }] = e.data;
 
-      // const getSceneColor = (ray, scene, depth) => {
-      //   const resultColor = Vector3.one;
-      //   let currentRay = ray;
-
-      //   // console.log("==========")
-
-      //   for(let i = depth; i > 0; i--) {
-      //     const hitInfo = HittableGeometryList.hit(
-      //       scene.hitObjects,
-      //       currentRay,
-      //       0.001,
-      //       Infinity
-      //     );
-
-      //     if(i === depth && !hitInfo) {
-      //       // console.log("first ray: no hit");
-      //       const rayDir = currentRay.direction.normalize();
-      //       const t = 0.5 * (rayDir.y + 1.0);
-      //       resultColor.copy(
-      //         new Vector3(1.0, 1.0, 1.0)
-      //           .mulScalar(1.0 - t)
-      //           .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t))
-      //       );
-      //       break;
-      //     }
-
-      //     if(hitInfo) {
-      //       const surfaceInfo =
-      //         BaseRaytraceMaterial
-      //           .getMaterialClass(hitInfo.material.type)
-      //           .scatter(hitInfo.material, currentRay, hitInfo);
-      //       // console.log("hit info");
-      //       // console.log(hitInfo);
-      //       if(surfaceInfo) {
-      //         // console.log("hit surface info");
-      //         // console.log(surfaceInfo)
-      //         currentRay = surfaceInfo.scatteredRay;
-      //         resultColor.mul(surfaceInfo.attenuation);
-      //         continue;
-      //       } else {
-      //         // console.log("no surface info");
-      //         // fall back
-      //         resultColor.copy(Vector3.zero);
-      //         break;
-      //       }
-      //     }
-
-      //     // console.log("no hit info");
-      //     break;
-      //   }
-
-      //   return resultColor;
-      // }
-
       const getSceneColor = (ray, scene, depth) => {
-        if(depth <= 0) {
-          return Vector3.zero;
-        }
-        const hitInfo = HittableGeometryList.hit(
-          scene.hitObjects,
-          ray,
-          0.001,
-          Infinity
-        );
-        if(hitInfo) {
+        const resultColor = Vector3.one;
+        let currentRay = ray;
+
+        for(let i = depth; i > 0; i--) {
+          const hitInfo = HittableGeometryList.hit(
+            scene.hitObjects,
+            currentRay,
+            0.001,
+            Infinity
+          );
+
+          if(!hitInfo) {
+            const rayDir = currentRay.direction.normalize();
+            const t = 0.5 * (rayDir.y + 1.0);
+            resultColor.mul(
+              new Vector3(1.0, 1.0, 1.0)
+                .mulScalar(1.0 - t)
+                .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t))
+            );
+            break;
+          }
+
           const surfaceInfo =
             BaseRaytraceMaterial
               .getMaterialClass(hitInfo.material.type)
-              .scatter(hitInfo.material, ray, hitInfo);
-          if(surfaceInfo) {
-            return getSceneColor(
-              surfaceInfo.scatteredRay,
-              scene,
-              depth - 1
-            ).mul(surfaceInfo.attenuation);
-          } else {
+              .scatter(hitInfo.material, currentRay, hitInfo);
+
+          if(!surfaceInfo) {
             // fall back
-            return Vector3.zero;
+            resultColor.mul(Vector3.zero);
+            break;
           }
+
+          currentRay = surfaceInfo.scatteredRay;
+          resultColor.mul(surfaceInfo.attenuation);
         }
-        const rayDir = ray.direction.normalize();
-        const t = 0.5 * (rayDir.y + 1.0);
-        return new Vector3(1.0, 1.0, 1.0)
-          .mulScalar(1.0 - t)
-          .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t));
+
+        return resultColor;
       }
 
       const positions = updatePixelIndexes.map(i => {
