@@ -1206,29 +1206,36 @@
         // );
 
         // base
-        const dir = 
-          Vector3.zero
-            .add(this.#horizontal.clone().mulScalar(x))
-            .add(this.#vertical.clone().mulScalar(y))
-            .add(this.#direction.clone().mulScalar(1))
-            .normalize();
-        const ray = new Ray(
-          this.position,
-          dir
+        // const dir = 
+        //   Vector3.zero
+        //     .add(this.#horizontal.clone().mulScalar(x))
+        //     .add(this.#vertical.clone().mulScalar(y))
+        //     .add(this.#direction.clone().mulScalar(1))
+        //     .normalize();
+        // const ray = new Ray(
+        //   this.position,
+        //   dir
+        // );
+
+        const lensRadius = this.aperture / 2;
+        const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
+        const offset = Vector3.addVectors(
+          this.#horizontal.clone().mulScalar(rd.x),
+          this.#vertical.clone().mulScalar(rd.y)
         );
 
-        // const lensRadius = this.aperture / 2;
-        // const dir = Vector3.randomInUnitDisk().mulScalar(lensRadius);
+        const from = Vector3.addVectors(this.position, offset);
 
-         // const dir = Vector3
-         //   .addVectors(
-         //     this.#horizontal.mulScalar(x),
-         //     this.#vertical.mulScalar(y),
-         //   )
-         //   .sub(this.position)
-         //   .normalize()
-         // console.log(dir)
-         // const ray = new Ray(this.position, dir);
+        const dir = Vector3
+          .addVectors(
+            this.#horizontal.clone().mulScalar(x),
+            this.#vertical.clone().mulScalar(y),
+            this.#direction.clone().mulScalar(this.focusDist)
+          )
+          .sub(offset)
+          .normalize()
+
+        const ray = new Ray(from, dir);
  
         return ray;
       }
