@@ -242,16 +242,24 @@
         return v;
       }
 
-      static mulVectors(a, b) {
-        return new Vector3(a.x * b.x, a.y * b.y, a.z * b.z);
+      static mulVectors(...args) {
+        const v = args[0].clone();
+        for(let i = 1; i < args.length; i++) {
+          v.mul(args[i]);
+        }
+        return v;
       }
 
       static mulVectorScalar(v, s) {
         return new Vector3(v.x * s, v.y * s, v.z * s);
       }
 
-      static divVectors(a, b) {
-        return new Vector3(a.x / b.x, a.y / b.y, a.z / b.z);
+      static divVectors(...args) {
+        const v = args[0].clone();
+        for(let i = 1; i < args.length; i++) {
+          v.div(args[i]);
+        }
+        return v;
       }
 
       static dotVectors(a, b) {
@@ -321,7 +329,7 @@
         return v.clone();
       }
 
-      static random(min, max) {
+      static random(min = 0, max = 1) {
         return new Vector3(
           MathUtilities.getRandomRange(min, max),
           MathUtilities.getRandomRange(min, max),
@@ -1300,7 +1308,6 @@
       }
 
       start({
-        scene,
         orderedPixelIndexes,
         maxWorkerNum,
         drawPointNum,
@@ -1337,7 +1344,6 @@
           // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
           const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
           const args = {
-            scene,
             width: sceneWidth,
             height: sceneHeight,
             sampleNumPerPixel,
@@ -1719,12 +1725,113 @@
   <script id="worker-script">
     'use strict';
 
+    const createScene = () => {
+      const scene = new HittableGeometryList();
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, -100.5, 0),
+        100,
+        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0, 0),
+        0.5,
+        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        0.5,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        -0.4,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(1.0, 0, 0),
+        0.5,
+        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      ));
+
+      return scene;
+    }
+
+    const createRandomScene = () => {
+      const scene = new HittableGeometryList();
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, -1000, 0),
+        1000,
+        new RaytraceLambertianMaterial(new Vector3(0.5, 0.5, 0.5))
+      ));
+
+      // let seed = 3;
+      // const offset = 3;
+
+      // for(let i = 0; i < seed; i++) {
+      //   for(let j = 0; j < seed; j++) {
+      //     const chooseMat = Math.random();
+      //     const offX = offset / seed;
+      //     const offY = offset / seed;
+
+      //     const center = new Vector3(
+      //       -offset * (i / 2) + offX * i + Math.random() * 0.8,
+      //       0.2,
+      //       -offset * (j / 2) + offY * j + Math.random() * 0.9,
+      //     );
+      //     if((Vector3.subVectors(center, new Vector3(4, 0.2, 0))).length() > 0.9) {
+      //       let material;
+      //       if(chooseMat < 0.8) {
+      //         const albedo = Vector3.mulVectors(
+      //           Vector3.random(),
+      //           Vector3.random()
+      //         );
+      //         material = new RaytraceLambertianMaterial(albedo);
+      //       } else if(chooseMat < 0.95) {
+      //         const albedo = Vector3.random(0.5, 1);
+      //         const fuzz = MathUtilities.getRandomRange(0, 0.5);
+      //         material = new RaytraceMetalMaterial(albedo, fuzz);
+      //       } else {
+      //         material = new RaytraceDielectricMaterial(1.5);
+      //       }
+      //       scene.add(new HittableSphereGeometry(center, 0.2, material));
+      //     }
+      //   }
+      // }
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0.5, 2),
+        0.5,
+        new RaytraceLambertianMaterial(new Vector3(1, 0, 0))
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 1, 0),
+        1.0,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-4, 1, 0),
+        1.0,
+        new RaytraceLambertianMaterial(new Vector3(0.4, 0.2, 0.1))
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(4, 1, 0),
+        1.0,
+        new RaytraceMetalMaterial(new Vector3(0.7, 0.6, 0.5), 0)
+      ));
+
+      return scene;
+    }
+
     // TODO:
     // - scene を trace する部分を外から渡せるように
     // - raytracing class に移す方がたぶんよい
     self.onmessage = (e) => {
       const [{
-        scene,
         width,
         height,
         sampleNumPerPixel,
@@ -1732,16 +1839,22 @@
         updatePixelIndexes
       }] = e.data;
 
-      const cameraPosition = new Vector3(3, 3, 2);
+      const scene = createRandomScene();
+      // const scene = createScene();
+
+      const cameraPosition = new Vector3(13, 2, 3);
+      // const cameraPosition = new Vector3(3, 3, 2);
       const cameraLookAt = new Vector3(0, 0, 0);
       const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
+      const fov = 20;
+      const aperture = 0;
       const camera = new Camera(
         cameraPosition,
         cameraLookAt,
         new Vector3(0, 1, 0), // up
-        20, // fov
+        fov,
         width / height, // aspect
-        1.0, // aperture
+        aperture,
         distToFocus
       );
 
@@ -1830,7 +1943,7 @@
     // constants for debug
     // const CANVAS_WIDTH = 320;
     // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 128;
+    // const DRAW_POINT_NUM = 1;
     // const SAMPLE_NUM_PER_PIXEL = 1;
     // const MAX_WORKER_NUM = 1;
     // const MAX_RAY_DEPTH = 64;
@@ -1848,49 +1961,14 @@
     });
 
     const raytraceRenderer = new RaytraceRenderer({ gpu });
-
-    const createScene = () => {
-      const scene = new HittableGeometryList();
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, -100.5, 0),
-        100,
-        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, 0, 0),
-        0.5,
-        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(-1.0, 0, 0),
-        0.5,
-        new RaytraceDielectricMaterial(1.5)
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(-1.0, 0, 0),
-        -0.4,
-        new RaytraceDielectricMaterial(1.5)
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(1.0, 0, 0),
-        0.5,
-        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
-      ));
-
-      return scene;
-    }
-    
+   
     const start = () => {
       const orderedPixelIndexes = ArrayUtilities.shuffle(
         [...new Array(sceneWidth * sceneHeight)].map((_, i) => i)
       );
 
-      const scene = createScene();
-
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
       raytraceRenderer.start({
-        scene,
         orderedPixelIndexes,
         maxWorkerNum: MAX_WORKER_NUM,
         drawPointNum: DRAW_POINT_NUM,
