@@ -205,7 +205,7 @@
       }
 
       static addVectors(...args) {
-        const v = args[0].clone();
+        const v = Vector3.clone(args[0]);
         for(let i = 1; i < args.length; i++) {
           v.add(args[i]);
         }
@@ -213,7 +213,7 @@
       }
 
       static subVectors(...args) {
-        const v = args[0].clone();
+        const v = Vector3.clone(args[0]);
         for(let i = 1; i < args.length; i++) {
           v.sub(args[i]);
         }
@@ -221,7 +221,7 @@
       }
 
       static mulVectors(...args) {
-        const v = args[0].clone();
+        const v = Vector3.clone(args[0]);
         for(let i = 1; i < args.length; i++) {
           v.mul(args[i]);
         }
@@ -233,7 +233,7 @@
       }
 
       static divVectors(...args) {
-        const v = args[0].clone();
+        const v = Vector3.clone(args[0]);
         for(let i = 1; i < args.length; i++) {
           v.div(args[i]);
         }
@@ -263,22 +263,6 @@
       }
 
       static refract(v, n, eta) {
-        // const cosTheta = Math.min(
-        //   Vector3.dotVectors(v.clone().negate(), n),
-        //   1.0
-        // );
-        // const rOutPerp = Vector3
-        //   .addVectors(
-        //     v,
-        //     Vector3.mulVectorScalar(n, cosTheta)
-        //   )
-        //   .mulScalar(eta);
-        // const rOutParallel = Vector3.mulVectorScalar(
-        //   n,
-        //   -Math.sqrt(Math.abs(1.0 - rOutPerp.lengthSquared()))
-        // );
-        // return Vector3.addVectors(rOutPerp, rOutParallel);
-
         /**
          * refs: https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/refract.xhtml
          * 
@@ -303,8 +287,8 @@
         }
       }
 
-      static copy(v) {
-        return v.clone();
+      static clone(v) {
+        return new Vector3(v.x, v.y, v.z);
       }
 
       static random(min = 0, max = 1) {
@@ -1054,14 +1038,14 @@
       focusDist;
       aperture;
 
-      #direction;
-      #horizontal;
-      #vertical;
-      #lensRadius;
-      #u;
-      #v;
-      #w;
-      #lowerLeftCorner;
+      direction;
+      horizontal;
+      vertical;
+      lensRadius;
+      u;
+      v;
+      w;
+      lowerLeftCorner;
 
       constructor(
         position,
@@ -1103,31 +1087,33 @@
         const height = 2.0 * h;
         const width = height * this.aspect;
 
-        this.#w = Vector3.subVectors(this.position, this.lookAt).normalize();
-        this.#u = Vector3.crossVectors(this.up, this.#w).normalize();
-        this.#v = Vector3.crossVectors(this.#w, this.#u).normalize();
+        this.w = Vector3.subVectors(this.position, this.lookAt).normalize();
+        this.u = Vector3.crossVectors(this.up, this.w).normalize();
+        this.v = Vector3.crossVectors(this.w, this.u).normalize();
  
-        this.#horizontal = Vector3.mulVectorScalar(this.#u, width).mulScalar(this.focusDist);
-        this.#vertical = Vector3.mulVectorScalar(this.#v, height).mulScalar(this.focusDist);
+        this.horizontal = Vector3.mulVectorScalar(this.u, width).mulScalar(this.focusDist);
+        this.vertical = Vector3.mulVectorScalar(this.v, height).mulScalar(this.focusDist);
         // wは注視点からみたカメラの方向なので反転
-        this.#direction = this.#w.negate();
+        this.direction = this.w.negate();
       }
 
-      getRay(x, y) {
-        const lensRadius = this.aperture / 2;
+      // worker内で呼ぶのでstaticに
+      static getRay(camera, x, y) {
+        const lensRadius = camera.aperture / 2;
         const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
+
         const offset = Vector3.addVectors(
-          this.#horizontal.clone().mulScalar(rd.x),
-          this.#vertical.clone().mulScalar(rd.y)
+          Vector3.mulVectorScalar(camera.horizontal, rd.x),
+          Vector3.mulVectorScalar(camera.vertical, rd.y)
         );
 
-        const from = Vector3.addVectors(this.position, offset);
+        const from = Vector3.addVectors(camera.position, offset);
 
         const dir = Vector3
           .addVectors(
-            this.#horizontal.clone().mulScalar(x),
-            this.#vertical.clone().mulScalar(y),
-            this.#direction.clone().mulScalar(this.focusDist)
+            Vector3.mulVectorScalar(camera.horizontal, x),
+            Vector3.mulVectorScalar(camera.vertical, y),
+            Vector3.mulVectorScalar(camera.direction, camera.focusDist),
           )
           .sub(offset)
           // NOTE: normalizeしておいた方がいい気がする
@@ -1287,6 +1273,7 @@
 
       start({
         scene,
+        camera,
         orderedPixelIndexes,
         maxWorkerNum,
         drawPointNum,
@@ -1324,6 +1311,7 @@
           const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
           const args = {
             scene,
+            camera,
             width: sceneWidth,
             height: sceneHeight,
             sampleNumPerPixel,
@@ -1816,36 +1804,13 @@
     self.onmessage = (e) => {
       const [{
         scene,
+        camera,
         width,
         height,
         sampleNumPerPixel,
         maxRayDepth,
         updatePixelIndexes
       }] = e.data;
-
-      // for debug
-      // console.log("===========");
-      // console.log(e.data);
-      // console.log(scene);
-
-      // const scene = createRandomScene();
-      // const scene = createScene();
-
-      const cameraPosition = new Vector3(13, 2, 3);
-      // const cameraPosition = new Vector3(3, 3, 2);
-      const cameraLookAt = new Vector3(0, 0, 0);
-      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
-      const fov = 20;
-      const aperture = 0;
-      const camera = new Camera(
-        cameraPosition,
-        cameraLookAt,
-        new Vector3(0, 1, 0), // up
-        fov,
-        width / height, // aspect
-        aperture,
-        distToFocus
-      );
 
       const getRayColor = (ray, scene, depth) => {
         if(depth <= 0) {
@@ -1922,7 +1887,7 @@
         for(let i = 0; i < sampleNumPerPixel; i++) {
           const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
           const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
-          const ray = camera.getRay(x + addX, y + addY);
+          const ray = Camera.getRay(camera, x + addX, y + addY);
           const currentColor = getRayColor(ray, scene, maxRayDepth);
           accColor.x += gamma(currentColor.x);
           accColor.y += gamma(currentColor.y);
@@ -1968,9 +1933,25 @@
       canvas,
     });
 
+    const raytraceRenderer = new RaytraceRenderer({ gpu });
+
     const scene = createRandomScene();
 
-    const raytraceRenderer = new RaytraceRenderer({ gpu });
+    const cameraPosition = new Vector3(13, 2, 3);
+    // const cameraPosition = new Vector3(3, 3, 2);
+    const cameraLookAt = new Vector3(0, 0, 0);
+    const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
+    const fov = 20;
+    const aperture = 0;
+    const camera = new Camera(
+      cameraPosition,
+      cameraLookAt,
+      new Vector3(0, 1, 0), // up
+      fov,
+      sceneWidth / sceneHeight, // aspect
+      aperture,
+      distToFocus
+    );
    
     const start = () => {
       const orderedPixelIndexes = ArrayUtilities.shuffle(
@@ -1980,6 +1961,7 @@
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
       raytraceRenderer.start({
         scene,
+        camera,
         orderedPixelIndexes,
         maxWorkerNum: MAX_WORKER_NUM,
         drawPointNum: DRAW_POINT_NUM,
