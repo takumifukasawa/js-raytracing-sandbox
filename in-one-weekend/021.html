@@ -1300,7 +1300,7 @@
       }
 
       start({
-        world,
+        scene,
         orderedPixelIndexes,
         maxWorkerNum,
         drawPointNum,
@@ -1337,7 +1337,7 @@
           // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
           const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
           const args = {
-            world,
+            scene,
             width: sceneWidth,
             height: sceneHeight,
             sampleNumPerPixel,
@@ -1724,7 +1724,7 @@
     // - raytracing class に移す方がたぶんよい
     self.onmessage = (e) => {
       const [{
-        world,
+        scene,
         width,
         height,
         sampleNumPerPixel,
@@ -1745,17 +1745,17 @@
         distToFocus
       );
 
-      const getRayColor = (ray, world, depth) => {
+      const getRayColor = (ray, scene, depth) => {
         if(depth <= 0) {
           return Vector3.zero;
         }
-        const hitInfo = world.hit(ray, 0.001, Infinity);
+        const hitInfo = scene.hit(ray, 0.001, Infinity);
         if(hitInfo) {
           const surfaceInfo = hitInfo.material.scatter(ray, hitInfo);
           if(surfaceInfo) {
             return getRayColor(
               surfaceInfo.scatteredRay,
-              world,
+              scene,
               depth - 1
             ).mul(surfaceInfo.attenuation);
           } else {
@@ -1802,7 +1802,7 @@
           const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
           const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
           const ray = camera.getRay(x + addX, y + addY);
-          const currentColor = getRayColor(ray, world, maxRayDepth);
+          const currentColor = getRayColor(ray, scene, maxRayDepth);
           accColor.x += gamma(currentColor.x);
           accColor.y += gamma(currentColor.y);
           accColor.z += gamma(currentColor.z);
@@ -1849,36 +1849,36 @@
 
     const raytraceRenderer = new RaytraceRenderer({ gpu });
 
-    const createWorld = () => {
-      const world = new HittableGeometryList();
+    const createScene = () => {
+      const scene = new HittableGeometryList();
 
-      world.add(new HittableSphereGeometry(
+      scene.add(new HittableSphereGeometry(
         new Vector3(0, -100.5, 0),
         100,
         new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
       ));
-      world.add(new HittableSphereGeometry(
+      scene.add(new HittableSphereGeometry(
         new Vector3(0, 0, 0),
         0.5,
         new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
       ));
-      world.add(new HittableSphereGeometry(
+      scene.add(new HittableSphereGeometry(
         new Vector3(-1.0, 0, 0),
         0.5,
         new RaytraceDielectricMaterial(1.5)
       ));
-      world.add(new HittableSphereGeometry(
+      scene.add(new HittableSphereGeometry(
         new Vector3(-1.0, 0, 0),
         -0.4,
         new RaytraceDielectricMaterial(1.5)
       ));
-      world.add(new HittableSphereGeometry(
+      scene.add(new HittableSphereGeometry(
         new Vector3(1.0, 0, 0),
         0.5,
         new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
       ));
 
-      return world;
+      return scene;
     }
     
     const start = () => {
@@ -1886,11 +1886,11 @@
         [...new Array(sceneWidth * sceneHeight)].map((_, i) => i)
       );
 
-      const world = createWorld();
+      const scene = createScene();
 
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
       raytraceRenderer.start({
-        world,
+        scene,
         orderedPixelIndexes,
         maxWorkerNum: MAX_WORKER_NUM,
         drawPointNum: DRAW_POINT_NUM,
