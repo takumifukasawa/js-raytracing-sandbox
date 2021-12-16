@@ -1284,8 +1284,8 @@
         orderedPixelIndexes,
         maxWorkerNum,
         drawPointNum,
-        sampleNumPerPixel,
-        maxRayDepth,
+        sampleCountPerPixel,
+        maxRayIterationCount,
       }) {
         this.initPointGeometry(drawPointNum);
 
@@ -1321,8 +1321,8 @@
             camera,
             width: sceneWidth,
             height: sceneHeight,
-            sampleNumPerPixel,
-            maxRayDepth,
+            sampleCountPerPixel,
+            maxRayIterationCount,
             updatePixelIndexes
           };
 
@@ -1821,6 +1821,48 @@
       return scene;
     }
 
+
+    const getSceneColor = (ray, scene, maxRayIterationCount) => {
+      const resultColor = Vector3.one;
+      let currentRay = ray;
+
+      for(let i = maxRayIterationCount; i > 0; i--) {
+        const hitInfo = HittableGeometryList.hit(
+          scene.hitObjects,
+          currentRay,
+          0.001,
+          Infinity
+        );
+
+        if(!hitInfo) {
+          const rayDir = currentRay.direction.normalize();
+          const t = 0.5 * (rayDir.y + 1.0);
+          resultColor.mul(
+            new Vector3(1.0, 1.0, 1.0)
+              .mulScalar(1.0 - t)
+              .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t))
+          );
+          break;
+        }
+
+        const surfaceInfo =
+          BaseRaytraceMaterial
+            .getMaterialClass(hitInfo.material.type)
+            .scatter(hitInfo.material, currentRay, hitInfo);
+
+        if(!surfaceInfo) {
+          // fall back
+          resultColor.mul(Vector3.zero);
+          break;
+        }
+
+        currentRay = surfaceInfo.scatteredRay;
+        resultColor.mul(surfaceInfo.attenuation);
+      }
+
+      return resultColor;
+    }
+
     // TODO:
     // - scene を trace する部分を外から渡せるように
     // - raytracing class に移す方がたぶんよい
@@ -1830,51 +1872,10 @@
         camera,
         width,
         height,
-        sampleNumPerPixel,
-        maxRayDepth,
+        sampleCountPerPixel,
+        maxRayIterationCount,
         updatePixelIndexes
       }] = e.data;
-
-      const getSceneColor = (ray, scene, depth) => {
-        const resultColor = Vector3.one;
-        let currentRay = ray;
-
-        for(let i = depth; i > 0; i--) {
-          const hitInfo = HittableGeometryList.hit(
-            scene.hitObjects,
-            currentRay,
-            0.001,
-            Infinity
-          );
-
-          if(!hitInfo) {
-            const rayDir = currentRay.direction.normalize();
-            const t = 0.5 * (rayDir.y + 1.0);
-            resultColor.mul(
-              new Vector3(1.0, 1.0, 1.0)
-                .mulScalar(1.0 - t)
-                .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t))
-            );
-            break;
-          }
-
-          const surfaceInfo =
-            BaseRaytraceMaterial
-              .getMaterialClass(hitInfo.material.type)
-              .scatter(hitInfo.material, currentRay, hitInfo);
-
-          if(!surfaceInfo) {
-            // fall back
-            resultColor.mul(Vector3.zero);
-            break;
-          }
-
-          currentRay = surfaceInfo.scatteredRay;
-          resultColor.mul(surfaceInfo.attenuation);
-        }
-
-        return resultColor;
-      }
 
       const positions = updatePixelIndexes.map(i => {
         // ピクセル座標
@@ -1904,17 +1905,17 @@
         const x = p[0];
         const y = p[1];
         const accColor = Vector3.zero;
-        for(let i = 0; i < sampleNumPerPixel; i++) {
+        for(let i = 0; i < sampleCountPerPixel; i++) {
           const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
           const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
           const ray = Camera.getRay(camera, x + addX, y + addY);
-          const currentColor = getSceneColor(ray, scene, maxRayDepth);
+          const currentColor = getSceneColor(ray, scene, maxRayIterationCount);
           accColor.x += gamma(currentColor.x);
           accColor.y += gamma(currentColor.y);
           accColor.z += gamma(currentColor.z);
         }
-        const scale = sampleNumPerPixel;
-        const color = accColor.divScalar(sampleNumPerPixel);
+        const scale = sampleCountPerPixel;
+        const color = accColor.divScalar(sampleCountPerPixel);
         return color.toArray();
       });
 
@@ -1929,17 +1930,17 @@
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
     const DRAW_POINT_NUM = 128;
-    const SAMPLE_NUM_PER_PIXEL = 128;
+    const SAMPLE_COUNT_PER_PIXEL = 128;
     const MAX_WORKER_NUM = 8;
-    const MAX_RAY_DEPTH = 64;
+    const MAX_RAY_ITERATION_COUNT = 64;
 
     // constants for debug
     // const CANVAS_WIDTH = 320;
     // const CANVAS_HEIGHT = 180;
     // const DRAW_POINT_NUM = 1;
-    // const SAMPLE_NUM_PER_PIXEL = 1;
+    // const SAMPLE_COUNT_PER_PIXEL = 1;
     // const MAX_WORKER_NUM = 1;
-    // const MAX_RAY_DEPTH = 64;
+    // const MAX_RAY_ITERATION_COUNT = 64;
 
     const canvas = document.querySelector(".js-canvas");
 
@@ -1985,8 +1986,8 @@
         orderedPixelIndexes,
         maxWorkerNum: MAX_WORKER_NUM,
         drawPointNum: DRAW_POINT_NUM,
-        sampleNumPerPixel: SAMPLE_NUM_PER_PIXEL,
-        maxRayDepth: MAX_RAY_DEPTH,
+        sampleCountPerPixel: SAMPLE_COUNT_PER_PIXEL,
+        maxRayIterationCount: MAX_RAY_ITERATION_COUNT,
       });
     }
 
