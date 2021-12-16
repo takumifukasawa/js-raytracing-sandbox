@@ -1121,102 +1121,13 @@
         this.#u = Vector3.crossVectors(this.up, this.#w).normalize();
         this.#v = Vector3.crossVectors(this.#w, this.#u).normalize();
  
-        this.#horizontal = Vector3.mulVectorScalar(this.#u, width);
-        this.#vertical = Vector3.mulVectorScalar(this.#v, height);
+        this.#horizontal = Vector3.mulVectorScalar(this.#u, width).mulScalar(this.focusDist);
+        this.#vertical = Vector3.mulVectorScalar(this.#v, height).mulScalar(this.focusDist);
         // wは注視点からみたカメラの方向なので反転
         this.#direction = this.#w.negate();
-
-        // this.#lowerLeftCorner = Vector3.subVectors(
-        //   this.position,
-        //   // this.#horizontal.divScalar(2),
-        //   // this.#vertical.divScalar(2),
-        //   this.#w
-        //   // this.#w.mulScalar(this.focusDist)
-        // );
-
-        // for debug
-        // console.log("===========");
-        // console.log("width", width)
-        // console.log("height", height)
-        // console.log("u", u)
-        // console.log("v", v)
-        // console.log("w", w)
-        // console.log("horizontal", this.#horizontal)
-        // console.log("vertical", this.#vertical)
-        // console.log("direction", this.#direction)
       }
 
       getRay(x, y) {
-        // const lensRadius = this.aperture / 2;
-        // const rd = lensRadius * Vector3.randomInUnitDisk();
-        // const offset = Vector3.addVectors(this.#u * rd.x, this.#v * rd.y);
-        // const dir = 
-        //   Vector3.zero
-        //     .add(this.#horizontal.clone().mulScalar(x))
-        //     .add(this.#vertical.clone().mulScalar(y))
-        //     .add(this.#direction.clone().mulScalar(this.focusDist))
-        //   .normalize();
-        // const ray = new Ray(Vector3.addVectors(this.position, offset), dir);
-        // return ray;
-
-        // z = (lookat - lookfrom).normalize
-        // left_corder = o - w * x - h * y - z
-
-        // const lowerLeftCorner = this.position.clone()
-        //   .sub(this.#horizontal.clone().mulScalar(0.5))
-        //   .sub(this.#vertical.clone().mulScalar(0.5))
-        //   .sub(this.#w.clone());
-        // const dir = lowerLeftCorner.clone()
-        //   .add(this.#horizontal.clone().mulScalar(x))
-        //   .add(this.#vertical.clone().mulScalar(y))
-        //   .sub(this.position.clone());
-          // Vector3.zero
-          //   .add(this.#horizontal.clone().mulScalar(x))
-          //   .add(this.#vertical.clone().mulScalar(y))
-          //   .add(this.#direction)
-          // .normalize();
-
-        // basic
-        // const dir = 
-        //   Vector3.zero
-        //     .add(this.#horizontal.clone().mulScalar(x))
-        //     .add(this.#vertical.clone().mulScalar(y))
-        //     .add(this.#direction.clone().mulScalar(1))
-        //     .normalize();
- 
-        // const lensRadius = this.aperture / 2;
-        // const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
-        // const offset = Vector3.addVectors(
-        //   Vector3.mulVectorScalar(this.#u, rd.x),
-        //   Vector3.mulVectorScalar(this.#v, rd.y)
-        // ); 
-        // const dir = 
-        //   Vector3.zero
-        //     .add(this.#horizontal.clone().mulScalar(x))
-        //     .add(this.#vertical.clone().mulScalar(y))
-        //     .add(this.#direction.clone().mulScalar(this.focusDist))
-        //     // .normalize();
-        //   
-        //     // dir.log();
-
-        // const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
-        // const offset = Vector3.addVectors(
-        //   Vector3.mulVectorScalar(this.#u, rd.x),
-        //   Vector3.mulVectorScalar(this.#v, rd.y)
-        // );
-
-        // base
-        // const dir = 
-        //   Vector3.zero
-        //     .add(this.#horizontal.clone().mulScalar(x))
-        //     .add(this.#vertical.clone().mulScalar(y))
-        //     .add(this.#direction.clone().mulScalar(1))
-        //     .normalize();
-        // const ray = new Ray(
-        //   this.position,
-        //   dir
-        // );
-
         const lensRadius = this.aperture / 2;
         const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
         const offset = Vector3.addVectors(
@@ -1233,7 +1144,7 @@
             this.#direction.clone().mulScalar(this.focusDist)
           )
           .sub(offset)
-          .normalize()
+          // .normalize()
 
         const ray = new Ray(from, dir);
  
@@ -1825,9 +1736,9 @@
         cameraPosition,
         cameraLookAt,
         new Vector3(0, 1, 0), // up
-        60, // fov
+        20, // fov
         width / height, // aspect
-        1.0, // aperture
+        2.0, // aperture
         distToFocus
       );
 
