@@ -1719,109 +1719,6 @@
   <script id="worker-script">
     'use strict';
 
-    const createScene = () => {
-      const scene = new HittableGeometryList();
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, -100.5, 0),
-        100,
-        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, 0, 0),
-        0.5,
-        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(-1.0, 0, 0),
-        0.5,
-        new RaytraceDielectricMaterial(1.5)
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(-1.0, 0, 0),
-        -0.4,
-        new RaytraceDielectricMaterial(1.5)
-      ));
-      scene.add(new HittableSphereGeometry(
-        new Vector3(1.0, 0, 0),
-        0.5,
-        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
-      ));
-
-      return scene;
-    }
-
-    const createRandomScene = () => {
-      const scene = new HittableGeometryList();
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, -1000, 0),
-        1000,
-        new RaytraceLambertianMaterial(new Vector3(0.5, 0.5, 0.5))
-      ));
-
-      // let seed = 3;
-      // const offset = 3;
-
-      // for(let i = 0; i < seed; i++) {
-      //   for(let j = 0; j < seed; j++) {
-      //     const chooseMat = Math.random();
-      //     const offX = offset / seed;
-      //     const offY = offset / seed;
-
-      //     const center = new Vector3(
-      //       -offset * (i / 2) + offX * i + Math.random() * 0.8,
-      //       0.2,
-      //       -offset * (j / 2) + offY * j + Math.random() * 0.9,
-      //     );
-      //     if((Vector3.subVectors(center, new Vector3(4, 0.2, 0))).length() > 0.9) {
-      //       let material;
-      //       if(chooseMat < 0.8) {
-      //         const albedo = Vector3.mulVectors(
-      //           Vector3.random(),
-      //           Vector3.random()
-      //         );
-      //         material = new RaytraceLambertianMaterial(albedo);
-      //       } else if(chooseMat < 0.95) {
-      //         const albedo = Vector3.random(0.5, 1);
-      //         const fuzz = MathUtilities.getRandomRange(0, 0.5);
-      //         material = new RaytraceMetalMaterial(albedo, fuzz);
-      //       } else {
-      //         material = new RaytraceDielectricMaterial(1.5);
-      //       }
-      //       scene.add(new HittableSphereGeometry(center, 0.2, material));
-      //     }
-      //   }
-      // }
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, 0.5, 2),
-        0.5,
-        new RaytraceLambertianMaterial(new Vector3(1, 0, 0))
-      ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, 1, 0),
-        1.0,
-        new RaytraceDielectricMaterial(1.5)
-      ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(-4, 1, 0),
-        1.0,
-        new RaytraceLambertianMaterial(new Vector3(0.4, 0.2, 0.1))
-      ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(4, 1, 0),
-        1.0,
-        new RaytraceMetalMaterial(new Vector3(0.7, 0.6, 0.5), 0)
-      ));
-
-      return scene;
-    }
-
-
     const getSceneColor = (ray, scene, maxRayIterationCount) => {
       const resultColor = Vector3.one;
       let currentRay = ray;
@@ -1927,10 +1824,18 @@
     'use strict';
 
     // constants
+    // const CANVAS_WIDTH = 320;
+    // const CANVAS_HEIGHT = 180;
+    // const DRAW_POINT_NUM = 128;
+    // const SAMPLE_COUNT_PER_PIXEL = 128;
+    // const MAX_WORKER_NUM = 8;
+    // const MAX_RAY_ITERATION_COUNT = 64;
+
+    // middle
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 128;
-    const SAMPLE_COUNT_PER_PIXEL = 128;
+    const DRAW_POINT_NUM = 32;
+    const SAMPLE_COUNT_PER_PIXEL = 32;
     const MAX_WORKER_NUM = 8;
     const MAX_RAY_ITERATION_COUNT = 64;
 
@@ -1941,6 +1846,113 @@
     // const SAMPLE_COUNT_PER_PIXEL = 1;
     // const MAX_WORKER_NUM = 1;
     // const MAX_RAY_ITERATION_COUNT = 64;
+
+    const createScene = () => {
+      const scene = new HittableGeometryList();
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, -100.5, 0),
+        100,
+        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0, 0),
+        0.5,
+        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        0.5,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        -0.4,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(1.0, 0, 0),
+        0.5,
+        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      ));
+
+      return scene;
+    }
+
+    const createRandomScene = () => {
+      const scene = new HittableGeometryList();
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, -1000, 0),
+        1000,
+        new RaytraceLambertianMaterial(new Vector3(0.5, 0.5, 0.5))
+      ));
+
+      let seed = 11;
+      // const offset = 3;
+
+      for(let i = -seed; i < seed; i++) {
+        for(let j = -seed; j < seed; j++) {
+          const chooseMat = Math.random();
+          //const offX = offset / seed;
+          //const offY = offset / seed;
+
+          const center = new Vector3(
+            i + Math.random() * 0.9,
+            0.2,
+            j + Math.random() * 0.9
+            // -offset * (i / 2) + offX * i + Math.random() * 0.8,
+            // 0.2,
+            // -offset * (j / 2) + offY * j + Math.random() * 0.9,
+          );
+          if((Vector3.subVectors(center, new Vector3(4, 0.2, 0))).length() > 0.9) {
+            let material;
+            if(chooseMat < 0.8) {
+              const albedo = Vector3.mulVectors(
+                Vector3.random(),
+                Vector3.random()
+              );
+              material = new RaytraceLambertianMaterial(albedo);
+            } else if(chooseMat < 0.95) {
+              const albedo = Vector3.random(0.5, 1);
+              const fuzz = MathUtilities.getRandomRange(0, 0.5);
+              material = new RaytraceMetalMaterial(albedo, fuzz);
+            } else {
+              material = new RaytraceDielectricMaterial(1.5);
+            }
+            scene.add(new HittableSphereGeometry(center, 0.2, material));
+          }
+        }
+      }
+
+      // scene.add(new HittableSphereGeometry(
+      //   new Vector3(0, 0.5, 2),
+      //   0.5,
+      //   new RaytraceLambertianMaterial(new Vector3(1, 0, 0))
+      // ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 1, 0),
+        1.0,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-4, 1, 0),
+        1.0,
+        new RaytraceLambertianMaterial(new Vector3(0.4, 0.2, 0.1))
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(4, 1, 0),
+        1.0,
+        new RaytraceMetalMaterial(new Vector3(0.7, 0.6, 0.5), 0)
+      ));
+
+      return scene;
+    }
+
+
 
     const canvas = document.querySelector(".js-canvas");
 
@@ -1963,7 +1975,7 @@
     const cameraLookAt = new Vector3(0, 0, 0);
     const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
     const fov = 20;
-    const aperture = 0;
+    const aperture = 0.1;
     const camera = new Camera(
       cameraPosition,
       cameraLookAt,
