@@ -1386,6 +1386,15 @@
         Sphere: "Sphere"
       }
 
+      static getGeometryClass(type) {
+        switch(type) {
+          case BaseHittableGeometry.GeometryType.Sphere:
+            return HittableSphereGeometry;
+          default:
+            throw "invalid geometry type";
+        }
+      }
+
       constructor() {}
 
       hit(ray, tMin, tMax) {
@@ -1526,21 +1535,15 @@
         for(let i = 0; i < hitObjects.length; i++) {
           const hitObject = hitObjects[i];
 
-          let hittableGeometryClass;
-          switch(hitObject.type) {
-            case BaseHittableGeometry.GeometryType.Sphere:
-              hittableGeometryClass = HittableSphereGeometry;
-              break;
-            default:
-              throw "invalid geometry type";
-          }
-
-          let currentHitInfo = hittableGeometryClass.hit(
-            hitObject,
-            ray,
-            tMin,
-            hitDistance
-          );
+          const currentHitInfo =
+            BaseHittableGeometry
+              .getGeometryClass(hitObject.type)
+              .hit(
+                hitObject,
+                ray,
+                tMin,
+                hitDistance
+              );
           if(currentHitInfo) {
             isHit = true;
             hitInfo = currentHitInfo;
@@ -1561,6 +1564,19 @@
         Lambertian: "Lambertian",
         Metal: "Metal",
         Dielectric: "Dielectric"
+      }
+
+      static getMaterialClass(type) {
+        switch(type) {
+          case BaseRaytraceMaterial.MaterialType.Lambertian:
+            return RaytraceLambertianMaterial;
+          case BaseRaytraceMaterial.MaterialType.Metal:
+            return RaytraceMetalMaterial;
+          case BaseRaytraceMaterial.MaterialType.Dielectric:
+            return RaytraceDielectricMaterial;
+          default:
+            throw "invalid material type.";
+        }
       }
 
       static scatter(inRay, hitInfo) {
@@ -1823,21 +1839,10 @@
           Infinity
         );
         if(hitInfo) {
-          let materialClass;
-          switch(hitInfo.material.type) {
-            case BaseRaytraceMaterial.MaterialType.Lambertian:
-              materialClass = RaytraceLambertianMaterial;
-              break;
-            case BaseRaytraceMaterial.MaterialType.Metal:
-              materialClass = RaytraceMetalMaterial;
-              break;
-            case BaseRaytraceMaterial.MaterialType.Dielectric:
-              materialClass = RaytraceDielectricMaterial;
-              break;
-            default:
-              throw "invalid material type.";
-          }
-          const surfaceInfo = materialClass.scatter(hitInfo.material, ray, hitInfo);
+          const surfaceInfo =
+            BaseRaytraceMaterial
+              .getMaterialClass(hitInfo.material.type)
+              .scatter(hitInfo.material, ray, hitInfo);
           if(surfaceInfo) {
             return getRayColor(
               surfaceInfo.scatteredRay,
