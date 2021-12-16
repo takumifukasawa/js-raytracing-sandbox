@@ -96,41 +96,19 @@
     }
 
     class Vector3 {
-      #elements = [];
-
-      get x() {
-        return this.#elements[0];
-      }
-
-      get y() {
-        return this.#elements[1];
-      }
-
-      get z() {
-        return this.#elements[2];
-      }
-
-      set x(value) {
-        this.#elements[0] = value;
-      }
-
-      set y(value) {
-        this.#elements[1] = value;
-      }
-
-      set z(value) {
-        this.#elements[2] = value;
-      }
-
-      get elements() {
-        return this.#elements;
-      }
+      x;
+      y;
+      z;
 
       constructor(...args) {
-        this.#elements[0] = args[0] || 0;
-        this.#elements[1] = args[1] || 0;
-        this.#elements[2] = args[2] || 0;
+        this.x = args[0] || 0;
+        this.y = args[1] || 0;
+        this.z = args[2] || 0;
         return this;
+      }
+
+      toArray() {
+        return [this.x, this.y, this.z];
       }
 
       log() {
@@ -1308,6 +1286,7 @@
       }
 
       start({
+        scene,
         orderedPixelIndexes,
         maxWorkerNum,
         drawPointNum,
@@ -1344,6 +1323,7 @@
           // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
           const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
           const args = {
+            scene,
             width: sceneWidth,
             height: sceneHeight,
             sampleNumPerPixel,
@@ -1396,42 +1376,28 @@
     }
 
     class HitInfo {
-        #distance;
-        #position;
-        #normal;
-        #material;
-        #isFrontFace;
-
-        get distance() {
-          return this.#distance;
-        }
-
-        get position() {
-          return this.#position;
-        }
-
-        get normal() {
-          return this.#normal;
-        }
-
-        get material() {
-          return this.#material;
-        }
-
-        get isFrontFace() {
-          return this.#isFrontFace;
-        }
+        distance;
+        position;
+        normal;
+        material;
+        isFrontFace;
 
         constructor({ distance, position, normal, material, isFrontFace }) {
-          this.#distance = distance;
-          this.#position = position;
-          this.#normal = normal;
-          this.#material = material;
-          this.#isFrontFace = isFrontFace;
+          this.distance = distance;
+          this.position = position;
+          this.normal = normal;
+          this.material = material;
+          this.isFrontFace = isFrontFace;
         }
     }
 
     class BaseHittableGeometry {
+      type;
+
+      static GeometryType = {
+        Sphere: "Sphere"
+      }
+
       constructor() {}
 
       hit(ray, tMin, tMax) {
@@ -1449,26 +1415,19 @@
     }
 
     class HittableSphereGeometry extends BaseHittableGeometry {
-      #center;
-      #radius;
-      #material;
+      center;
+      radius;
+      material;
       
-      get center() {
-        return this.#center;
-      }
-
-      get radius() {
-        return this.#radius;
-      }
-
       constructor(center, radius, material) {
         super();
-        this.#center = center;
-        this.#radius = radius;
-        this.#material = material;
+        this.type = BaseHittableGeometry.GeometryType.Sphere;
+        this.center = center;
+        this.radius = radius;
+        this.material = material;
       }
 
-      hit(ray, tMin, tMax) {
+      static hit(sphere, ray, tMin, tMax) {
         /*
          * 2次方程式のxの解
          * x = (-b (+-) sqrt (b^2 - 4ac)) / 2a
@@ -1514,11 +1473,11 @@
          * x = (-h (+-) sqrt (h^2 - ac)) / a
          */
 
-        const oc = Vector3.subVectors(ray.origin, this.#center);
+        const oc = Vector3.subVectors(ray.origin, sphere.center);
         const a = Vector3.dotVectors(ray.direction, ray.direction);
         // b = 2h より、 h = b / 2
         const halfB = Vector3.dotVectors(oc, ray.direction);
-        const c = Vector3.dotVectors(oc, oc) - this.#radius * this.#radius;
+        const c = Vector3.dotVectors(oc, oc) - sphere.radius * sphere.radius;
         // 判別式
         const discriminant = halfB * halfB - a * c;
 
@@ -1542,8 +1501,8 @@
 
         // normalizeはなくてよいけど一応
         let normal = Vector3
-          .subVectors(position, this.#center)
-          .divScalar(this.#radius)
+          .subVectors(position, sphere.center)
+          .divScalar(sphere.radius)
           .normalize();
         const isFrontFace = BaseHittableGeometry.isFrontFace(ray, normal);
         normal = BaseHittableGeometry.setFaceNormal(ray, normal);
@@ -1552,32 +1511,48 @@
           distance,
           position,
           normal,
-          material: this.#material,
+          material: sphere.material,
           isFrontFace
         });
       }
     }
 
-    class HittableGeometryList extends BaseHittableGeometry {
-      #hitObjects;
+    // 本当はBaseHittableGeometryを継承させていた方がいい
+    class HittableGeometryList {
+      hitObjects;
+
       constructor(hitObjects = []) {
-        super();
-        this.#hitObjects = hitObjects;
+        this.hitObjects = hitObjects;
       }
 
       add(hittableObject) {
-        this.#hitObjects.push(hittableObject);
+        this.hitObjects.push(hittableObject);
       }
 
-      hit(ray, tMin, tMax) {
+      static hit(hitObjects, ray, tMin, tMax) {
         let isHit = false;
         let hitInfo = null;
         // ヒットした距離を更新してヒット判定の最大長に渡すことで重なり順を解決
         let hitDistance = tMax;
 
-        for(let i = 0; i < this.#hitObjects.length; i++) {
-          const hitObject = this.#hitObjects[i];
-          let currentHitInfo = hitObject.hit(ray, tMin, hitDistance);
+        for(let i = 0; i < hitObjects.length; i++) {
+          const hitObject = hitObjects[i];
+
+          let hittableGeometryClass;
+          switch(hitObject.type) {
+            case BaseHittableGeometry.GeometryType.Sphere:
+              hittableGeometryClass = HittableSphereGeometry;
+              break;
+            default:
+              throw "invalid geometry type";
+          }
+
+          let currentHitInfo = hittableGeometryClass.hit(
+            hitObject,
+            ray,
+            tMin,
+            hitDistance
+          );
           if(currentHitInfo) {
             isHit = true;
             hitInfo = currentHitInfo;
@@ -1590,36 +1565,40 @@
     }
 
     class BaseRaytraceMaterial {
+      type;
+
       constructor() {}
-      scatter(inRay, hitInfo) {
+
+      static MaterialType = {
+        Lambertian: "Lambertian",
+        Metal: "Metal",
+        Dielectric: "Dielectric"
+      }
+
+      static scatter(inRay, hitInfo) {
         throw "should implement method";
       }
     }
 
     class SurfaceInfo {
-      #attenuation;
-      #scatteredRay;
-      get attenuation() {
-        return this.#attenuation;
-      }
-      get scatteredRay() {
-        return this.#scatteredRay;
-      }
+      attenuation;
+      scatteredRay;
       constructor(attenuation, scatteredRay) {
-        this.#attenuation = attenuation;
-        this.#scatteredRay = scatteredRay;
+        this.attenuation = attenuation;
+        this.scatteredRay = scatteredRay;
       }
     }
 
     class RaytraceLambertianMaterial extends BaseRaytraceMaterial {
-      #albedo;
+      albedo;
 
       constructor(albedo) {
         super();
-        this.#albedo = albedo;
+        this.type = BaseRaytraceMaterial.MaterialType.Lambertian;
+        this.albedo = albedo;
       }
 
-      scatter(inRay, hitInfo) {
+      static scatter(material, inRay, hitInfo) {
         const scatterDirection = Vector3.addVectors(
           hitInfo.normal,
           Vector3.randomUnitSphere()
@@ -1628,28 +1607,29 @@
           scatterDirection = hitInfo.normal;
         }
         const scatteredRay = new Ray(hitInfo.position, scatterDirection);
-        const attenuation = this.#albedo;
+        const attenuation = material.albedo;
         return new SurfaceInfo(attenuation, scatteredRay);
       }
     }
 
     class RaytraceMetalMaterial extends BaseRaytraceMaterial {
-      #albedo;
-      #fuzzy; // 0~1: 1であればあるほど鏡面に近づく
+      albedo;
+      fuzzy; // 0~1: 1であればあるほど鏡面に近づく
 
       constructor(albedo, fuzzy) {
         super();
-        this.#albedo = albedo;
-        this.#fuzzy = Math.min(fuzzy, 1);
+        this.type = BaseRaytraceMaterial.MaterialType.Metal;
+        this.albedo = albedo;
+        this.fuzzy = Math.min(fuzzy, 1);
       }
 
-      scatter(inRay, hitInfo) {
+      static scatter(material, inRay, hitInfo) {
         const reflected = Vector3.reflect(inRay.direction, hitInfo.normal).normalize();
         const fuzzyReflected = reflected.clone()
-          .add(Vector3.randomInUnitSphere().mulScalar(this.#fuzzy))
+          .add(Vector3.randomInUnitSphere().mulScalar(material.fuzzy))
           .normalize();
         const scatteredRay = new Ray(hitInfo.position, fuzzyReflected);
-        const attenuation = this.#albedo;
+        const attenuation = material.albedo;
         // 反射ベクトルと法線の角度が0以上の時は反射情報を返す
         // でもほぼ必ずそうなるはず？
         return Vector3.dotVectors(scatteredRay.direction, hitInfo.normal) > 0
@@ -1659,14 +1639,15 @@
     }
 
     class RaytraceDielectricMaterial extends BaseRaytraceMaterial {
-      #ir;
+      ir;
 
       constructor(ir) {
         super();
-        this.#ir = ir;
+        this.type = BaseRaytraceMaterial.MaterialType.Dielectric;
+        this.ir = ir;
       }
 
-      scatter(inRay, hitInfo) {
+      static scatter(material, inRay, hitInfo) {
         const attenuation = Vector3.one;
 
         /**
@@ -1687,7 +1668,9 @@
          * 今回は屈折前後のどちらかは空気想定
          */
 
-        const refractionRatio = hitInfo.isFrontFace ? (1.0 / this.#ir) : this.#ir;
+        const refractionRatio = hitInfo.isFrontFace
+          ? (1.0 / material.ir)
+          : material.ir;
 
         const unitDirection = inRay.direction.clone().normalize();
 
@@ -1832,6 +1815,7 @@
     // - raytracing class に移す方がたぶんよい
     self.onmessage = (e) => {
       const [{
+        scene,
         width,
         height,
         sampleNumPerPixel,
@@ -1839,7 +1823,12 @@
         updatePixelIndexes
       }] = e.data;
 
-      const scene = createRandomScene();
+      // for debug
+      // console.log("===========");
+      // console.log(e.data);
+      // console.log(scene);
+
+      // const scene = createRandomScene();
       // const scene = createScene();
 
       const cameraPosition = new Vector3(13, 2, 3);
@@ -1862,9 +1851,28 @@
         if(depth <= 0) {
           return Vector3.zero;
         }
-        const hitInfo = scene.hit(ray, 0.001, Infinity);
+        const hitInfo = HittableGeometryList.hit(
+          scene.hitObjects,
+          ray,
+          0.001,
+          Infinity
+        );
         if(hitInfo) {
-          const surfaceInfo = hitInfo.material.scatter(ray, hitInfo);
+          let materialClass;
+          switch(hitInfo.material.type) {
+            case BaseRaytraceMaterial.MaterialType.Lambertian:
+              materialClass = RaytraceLambertianMaterial;
+              break;
+            case BaseRaytraceMaterial.MaterialType.Metal:
+              materialClass = RaytraceMetalMaterial;
+              break;
+            case BaseRaytraceMaterial.MaterialType.Dielectric:
+              materialClass = RaytraceDielectricMaterial;
+              break;
+            default:
+              throw "invalid material type.";
+          }
+          const surfaceInfo = materialClass.scatter(hitInfo.material, ray, hitInfo);
           if(surfaceInfo) {
             return getRayColor(
               surfaceInfo.scatteredRay,
@@ -1922,7 +1930,7 @@
         }
         const scale = sampleNumPerPixel;
         const color = accColor.divScalar(sampleNumPerPixel);
-        return color.elements;
+        return color.toArray();
       });
 
       postMessage([{ positions, colors }]);
@@ -1960,6 +1968,8 @@
       canvas,
     });
 
+    const scene = createRandomScene();
+
     const raytraceRenderer = new RaytraceRenderer({ gpu });
    
     const start = () => {
@@ -1969,6 +1979,7 @@
 
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
       raytraceRenderer.start({
+        scene,
         orderedPixelIndexes,
         maxWorkerNum: MAX_WORKER_NUM,
         drawPointNum: DRAW_POINT_NUM,
