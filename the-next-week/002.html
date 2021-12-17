@@ -308,6 +308,10 @@
         return new Vector3(v.x, v.y, v.z);
       }
 
+      static fill(s) {
+        return new Vector3(s, s, s);
+      }
+
       static random(min = 0, max = 1) {
         return new Vector3(
           MathUtilities.getRandomRange(min, max),
@@ -348,6 +352,81 @@
         const x = Math.cos(p) * d;
         const y = Math.sin(p) * d;
         return new Vector3(x, y, 0);
+      }
+    }
+
+    class AABB {
+      min;
+      max;
+
+      constructor(a, b) {
+        this.min = a;
+        this.max = b;
+      }
+
+      static getMinMax(aabb, ray, key) {
+        const t0 = Math.min(
+          (aabb.min[key] - ray.origin[key]) / ray.direction[key],
+          (aabb.max[key] - ray.origin[key]) / ray.direction[key]
+        );
+        const t1 = Math.max(
+          (aabb.min[key] - ray.origin[key]) / ray.direction[key],
+          (aabb.max[key] - ray.origin[key]) / ray.direction[key]
+        );
+        return { t0, t1 };
+      }
+
+      // hit(ray, tmin, tmax) {
+      //   let tmpMin = tmin;
+      //   let tmpMax = tmax;
+      //   const keys = ["x", "y", "z"];
+      //   for(let i = 0; i < keys.length; i++) {
+      //     const key = keys[i];
+      //     const res = AABB.getMinMax(this, ray, key);
+      //     tmpMin = Math.max(res.t0, tmpMin);
+      //     tmpMax = Math.min(res.t1, tmpMax);
+      //     if(tmpMax <= tmpMin) {
+      //       return false;
+      //     }
+      //   }
+      //   return true;
+      // }
+
+      // optimized
+      hit(ray, tmin, tmax) {
+        let tmpMin = tmin;
+        let tmpMax = tmax;
+        const keys = ["x", "y", "z"];
+        for(let i = 0; i < 3; i++) {
+          const key = keys[i];
+          const invD = 1 / ray.direcion[key];
+          let t0 = Vector3.subVectors(this.min[key], ray.origin[key]).mulScalar(invD);
+          let t1 = Vector3.subVectors(this.max[key], ray.origin[key]).mulScalar(invD);
+          if(invD < 0) {
+            // swap
+            [t0, t1] = [t1, t0];
+          }
+          tmpMin = t0 > tmpMin ? t0 : tmpMin;
+          tmpMax = t1 < tmpMax ? t1 : tmpMax;
+          if(tmpMax <= tmpMin) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      static surroundingBox(box0, box1) {
+        const small = new Vector3(
+          Math.min(box0.min.x, box1.min.x),
+          Math.min(box0.min.y, box1.min.y),
+          Math.min(box0.min.z, box1.min.z),
+        );
+        const big = new Vector3(
+          Math.min(box0.max.x, box1.max.x),
+          Math.min(box0.max.y, box1.max.y),
+          Math.min(box0.max.z, box1.max.z),
+        );
+        return new AABB(small, big);
       }
     }
   </script>
@@ -1418,6 +1497,12 @@
         MovingSphere: "MovingSphere",
       }
 
+      constructor() {}
+
+      hit(ray, tMin, tMax) {
+        throw 'implement method.'
+      }
+
       static getGeometryClass(type) {
         switch(type) {
           case BaseHittableGeometry.GeometryType.Sphere:
@@ -1427,12 +1512,6 @@
           default:
             throw "invalid geometry type";
         }
-      }
-
-      constructor() {}
-
-      hit(ray, tMin, tMax) {
-        throw 'implement method.'
       }
 
       static isFrontFace(ray, normal) {
@@ -1546,6 +1625,13 @@
           isFrontFace
         });
       }
+
+      static boundingBox(sphere, t0, t1) {
+        return new AABB(
+          Vector3.subVectors(sphere.center, Vector3.fill(sphere.radius)),
+          Vector3.addVectors(sphere.center, Vector3.fill(sphere.radius)),
+        );
+      }
     }
 
     class HittableMovingSphereGeometry extends BaseHittableGeometry {
@@ -1623,6 +1709,22 @@
           isFrontFace
         });
       }
+
+      static boundingBox(sphere, t0, t1) {
+        const center0 = HittableMovingSphereGeometry.center(sphere, sphere.time0);
+        const box0 = new AABB(
+          Vector3.subVectors(center0, Vector3.fill(sphere.radius)),
+          Vector3.addVectors(center0, Vector3.fill(sphere.radius)),
+        );
+
+        const center1 = HittableMovingSphereGeometry.center(sphere, sphere.time1);
+        const box1 = new AABB(
+          Vector3.subVectors(center1, Vector3.fill(sphere.radius)),
+          Vector3.addVectors(center1, Vector3.fill(sphere.radius)),
+        );
+
+        return AABB.surroundingBox(box0, box1);
+      }
     }
 
 
@@ -1665,6 +1767,27 @@
         }
 
         return hitInfo;
+      }
+
+      static boundingBox(hitObjects, t0, t1) {
+        if(hitObjects.length < 1) {
+          return null;
+        }
+
+        let tmpBox;
+        let outputBox;
+        let firstBox = true;
+        
+        for(let i = 0; i < hitObjects.length; i++) {
+          tmpBox = hitObjects[i].boundingBox(t0, t1);
+          if(!tmpBox) {
+            return false;
+          }
+          outputBox = firstBox ? tmpBox : AABB.surroundingBox(outputBox, tmpBox);
+          firstBox = false;
+        }
+
+        return outputBox;
       }
     }
 
