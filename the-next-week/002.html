@@ -441,10 +441,10 @@
       static boxCompare(a, b, axisKey) {
         const boxA = BaseHittableGeometry
           .getGeometryClass(a.type)
-          .boundingBox(a, time0, time1);
+          .boundingBox(a, a.time0, a.time1);
         const boxB = BaseHittableGeometry
           .getGeometryClass(b.type)
-          .boundingBox(b, time0, time1);
+          .boundingBox(b, b.time0, b.time1);
         if(!boxA || !boxB) {
           throw "no bounding box in bvh node";
         }
@@ -459,7 +459,7 @@
         return AABB.boxCompare(a, b, "y");
       }
 
-      static boxCompareY(a, b) {
+      static boxCompareZ(a, b) {
         return AABB.boxCompare(a, b, "z");
       }
     }
@@ -469,24 +469,30 @@
       right;
       box;
 
+      static createRoot(objects, time0, time1) {
+        console.log(objects, 0, objects.length, time0, time1)
+        return new BVHNode(objects, 0, objects.length, time0, time1);
+      }
+
       constructor(objects, start, end, time0, time1) {
         const axis = MathUtilities.getRandomInt(0, 2);
         // const axisKeys = ["x", "y", "z"];
 
         let comparator;
         if(axis === 0) {
-          comparator = AABB.boxXCompare;
+          comparator = AABB.boxCompareX;
         } else if(axis === 1) {
-          comparator = AABB.boxYCompare;
+          comparator = AABB.boxCompareY;
         } else {
-          comparator = AABB.boxZCompare;
+          comparator = AABB.boxCompareZ;
         }
 
         const objectSpan = end - start;
-        
+
         if(objectSpan == 1) {
           this.left = objects[start];
           this.right = objects[start];
+          console.log("objectSpan: 1", end, start, this.left, this.right)
 
         } else if(objectSpan == 2) {
           if(comparator(objects[start], objects[start + 1])) {
@@ -496,23 +502,30 @@
             this.left = objects[start + 1];
             this.right = objects[start];
           }
+          console.log("objectSpan: 2", end, start, this.left, this.right)
 
         } else {
-          ArrayUtilities(objects, start, end, comparator);
+          ArrayUtilities.sortSplice(objects, start, end, comparator);
           // TODO: needs floor
-          const mid = start + objectSpan / 2;
+          const mid = Math.floor(start + objectSpan / 2);
           this.left = new BVHNode(objects, start, mid, time0, time1);
           this.right = new BVHNode(objects, mid, end, time0, time1);
+          console.log(`objectSpan: ${objectSpan}`, end, start, this.left, this.right)
         }
 
-        const boxLeft = BaseHittableGeometry
-          .getGeometryClass(this.left.type)
-          .boundingBox(this.left, time0, time1);
-        const boxRight = BaseHittableGeometry
-          .getGeometryClass(this.right.type)
-          .boundingBox(this.right, time0, time1);
+        // console.log(this.left, this.right)
 
-        if(boxLeft || boxRight) {
+        // const boxLeft = BaseHittableGeometry
+        //   .getGeometryClass(this.left.type)
+        //   .boundingBox(this.left, time0, time1);
+        // const boxRight = BaseHittableGeometry
+        //   .getGeometryClass(this.right.type)
+        //   .boundingBox(this.right, time0, time1);
+
+        const boxLeft = HittableGeometryList.boundingBox(objects, time0, time1);
+        const boxRight = HittableGeometryList.boundingBox(objects, time0, time1);
+
+        if(!boxLeft || !boxRight) {
           throw "no bounding box in bvh node";
         }
 
@@ -1892,7 +1905,11 @@
         let firstBox = true;
         
         for(let i = 0; i < hitObjects.length; i++) {
-          tmpBox = hitObjects[i].boundingBox(t0, t1);
+          // tmpBox = hitObjects[i].boundingBox(t0, t1);
+          tmpBox = BaseHittableGeometry
+            .getGeometryClass(hitObjects[i].type)
+            .boundingBox(hitObjects[i], t0, t1);
+ 
           if(!tmpBox) {
             return false;
           }
@@ -2404,10 +2421,12 @@
     // }
     // window.addEventListener('resize', () => setSize());
 
-    start();
-    requestAnimationFrame(tick);
+    // start();
+    // requestAnimationFrame(tick);
 
-
+    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
+    console.log("=====")
+    console.log(bvhRoot);
   </script>
 </body>
 </html>
