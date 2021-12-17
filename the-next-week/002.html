@@ -494,14 +494,12 @@
         if(objectSpan == 1) {
           this.left = objects[start];
           this.right = objects[start];
-
-          // TODO: constructorのtime0,time1をわたすべき？
           boxLeft = BaseHittableGeometry
             .getGeometryClass(this.left.type)
-            .boundingBox(this.left, this.left.time0, this.left.time1);
+            .boundingBox(this.left, time0, time1);
           boxRight = BaseHittableGeometry
             .getGeometryClass(this.right.type)
-            .boundingBox(this.right, this.right.time0, this.right.time1);
+            .boundingBox(this.right, time0, time1);
  
         } else if(objectSpan == 2) {
           if(comparator(objects[start], objects[start + 1])) {
@@ -511,24 +509,20 @@
             this.left = objects[start + 1];
             this.right = objects[start];
           }
-
-          // TODO: constructorのtime0,time1をわたすべき？
           boxLeft = BaseHittableGeometry
             .getGeometryClass(this.left.type)
-            .boundingBox(this.left, this.left.time0, this.left.time1);
+            .boundingBox(this.left, time0, time1);
           boxRight = BaseHittableGeometry
             .getGeometryClass(this.right.type)
-            .boundingBox(this.right, this.right.time0, this.right.time1);
+            .boundingBox(this.right, time0, time1);
 
         } else {
           ArrayUtilities.sortSplice(objects, start, end, comparator);
-          // TODO: needs floor ??
           const mid = Math.floor(start + objectSpan / 2);
           const slicedLeft = [...objects].splice(start, mid - start + 1);
           const slicedRight = [...objects].splice(mid, end - mid + 1);
           this.left = new BVHNode(objects, start, mid, time0, time1);
           this.right = new BVHNode(objects, mid, end, time0, time1);
-
           boxLeft = HittableGeometryList.boundingBox(slicedLeft, time0, time1);
           boxRight = HittableGeometryList.boundingBox(slicedRight, time0, time1);
         }
