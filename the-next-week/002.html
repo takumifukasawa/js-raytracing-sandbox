@@ -44,6 +44,9 @@
       static getRandomRange(min, max) {
         return min + Math.random() * (max - min);
       }
+      static getRandomInt(min, max) {
+        return min + Math.floor(Math.random() % (max - min + 1));
+      }
       static clamp(value, min, max) {
         return Math.min(max, Math.max(value, min));
       }
@@ -74,6 +77,12 @@
           arr[targetIndex] = arr[lastIndex];
           arr[lastIndex] = tmp;
         }
+        return arr;
+      }
+      static sortSplice(arr, start, end, comparator) {
+        const pick = arr.splice(start, end - start + 1);
+        pick.sort(comparator);
+        arr.splice(start, 0, ...pick);
         return arr;
       }
     }
@@ -393,15 +402,15 @@
       // }
 
       // optimized
-      hit(ray, tmin, tmax) {
+      static hit(box, ray, tmin, tmax) {
         let tmpMin = tmin;
         let tmpMax = tmax;
         const keys = ["x", "y", "z"];
         for(let i = 0; i < 3; i++) {
           const key = keys[i];
           const invD = 1 / ray.direcion[key];
-          let t0 = Vector3.subVectors(this.min[key], ray.origin[key]).mulScalar(invD);
-          let t1 = Vector3.subVectors(this.max[key], ray.origin[key]).mulScalar(invD);
+          let t0 = Vector3.subVectors(box.min[key], ray.origin[key]).mulScalar(invD);
+          let t1 = Vector3.subVectors(box.max[key], ray.origin[key]).mulScalar(invD);
           if(invD < 0) {
             // swap
             [t0, t1] = [t1, t0];
@@ -427,6 +436,110 @@
           Math.min(box0.max.z, box1.max.z),
         );
         return new AABB(small, big);
+      }
+
+      static boxCompare(a, b, axisKey) {
+        const boxA = BaseHittableGeometry
+          .getGeometryClass(a.type)
+          .boundingBox(a, time0, time1);
+        const boxB = BaseHittableGeometry
+          .getGeometryClass(b.type)
+          .boundingBox(b, time0, time1);
+        if(!boxA || !boxB) {
+          throw "no bounding box in bvh node";
+        }
+        return boxA.min[axisKey] < boxB.min[axisKey];
+      }
+
+      static boxCompareX(a, b) {
+        return AABB.boxCompare(a, b, "x");
+      }
+
+      static boxCompareY(a, b) {
+        return AABB.boxCompare(a, b, "y");
+      }
+
+      static boxCompareY(a, b) {
+        return AABB.boxCompare(a, b, "z");
+      }
+    }
+
+    class BVHNode {
+      left;
+      right;
+      box;
+
+      constructor(objects, start, end, time0, time1) {
+        const axis = MathUtilities.getRandomInt(0, 2);
+        // const axisKeys = ["x", "y", "z"];
+
+        let comparator;
+        if(axis === 0) {
+          comparator = AABB.boxXCompare;
+        } else if(axis === 1) {
+          comparator = AABB.boxYCompare;
+        } else {
+          comparator = AABB.boxZCompare;
+        }
+
+        const objectSpan = end - start;
+        
+        if(objectSpan == 1) {
+          this.left = objects[start];
+          this.right = objects[start];
+
+        } else if(objectSpan == 2) {
+          if(comparator(objects[start], objects[start + 1])) {
+            this.left = objects[start];
+            this.right = objects[start + 1];
+          } else {
+            this.left = objects[start + 1];
+            this.right = objects[start];
+          }
+
+        } else {
+          ArrayUtilities(objects, start, end, comparator);
+          // TODO: needs floor
+          const mid = start + objectSpan / 2;
+          this.left = new BVHNode(objects, start, mid, time0, time1);
+          this.right = new BVHNode(objects, mid, end, time0, time1);
+        }
+
+        const boxLeft = BaseHittableGeometry
+          .getGeometryClass(this.left.type)
+          .boundingBox(this.left, time0, time1);
+        const boxRight = BaseHittableGeometry
+          .getGeometryClass(this.right.type)
+          .boundingBox(this.right, time0, time1);
+
+        if(boxLeft || boxRight) {
+          throw "no bounding box in bvh node";
+        }
+
+        this.box = AABB.surroundingBox(boxLeft, boxRight);
+      }
+
+      // TODO: return hitinfo
+      static hit(bvhNode, ray, tmin, tmax, hitInfo) {
+        if(AABB.hit(box, ray, tmin, tmax)) {
+          return null;
+        }
+        const hitLeft = bvhNode.left.hit(
+          ray,
+          tmin,
+          tmax,
+          hitInfo
+        );
+
+        // TODO: hitLeftが存在していたらすぐ返せばよさそう？
+
+        const hitRight = bvhNode.right.hit(
+          ray,
+          tmin,
+          !!hitLeft ? hitLeft.distance : tmax,
+          hitInfo
+        );
+        return hitLeft ? hitLeft : hitRight;
       }
     }
   </script>
@@ -2293,6 +2406,8 @@
 
     start();
     requestAnimationFrame(tick);
+
+
   </script>
 </body>
 </html>
