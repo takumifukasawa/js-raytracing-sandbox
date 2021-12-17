@@ -489,23 +489,20 @@
 
         const objectSpan = end - start;
 
+        let boxLeft, boxRight;
+
         if(objectSpan == 1) {
           this.left = objects[start];
           this.right = objects[start];
 
           // TODO: constructorのtime0,time1をわたすべき？
-          const boxLeft = BaseHittableGeometry
+          boxLeft = BaseHittableGeometry
             .getGeometryClass(this.left.type)
             .boundingBox(this.left, this.left.time0, this.left.time1);
-          const boxRight = BaseHittableGeometry
+          boxRight = BaseHittableGeometry
             .getGeometryClass(this.right.type)
             .boundingBox(this.right, this.right.time0, this.right.time1);
  
-          if(!boxLeft || !boxRight) {
-            console.log("no bounding box in bvh node");
-          }
-          this.box = AABB.surroundingBox(boxLeft, boxRight);
-
         } else if(objectSpan == 2) {
           if(comparator(objects[start], objects[start + 1])) {
             this.left = objects[start];
@@ -516,16 +513,12 @@
           }
 
           // TODO: constructorのtime0,time1をわたすべき？
-          const boxLeft = BaseHittableGeometry
+          boxLeft = BaseHittableGeometry
             .getGeometryClass(this.left.type)
             .boundingBox(this.left, this.left.time0, this.left.time1);
-          const boxRight = BaseHittableGeometry
+          boxRight = BaseHittableGeometry
             .getGeometryClass(this.right.type)
             .boundingBox(this.right, this.right.time0, this.right.time1);
-          if(!boxLeft || !boxRight) {
-            console.log("no bounding box in bvh node");
-          }
-          this.box = AABB.surroundingBox(boxLeft, boxRight);
 
         } else {
           ArrayUtilities.sortSplice(objects, start, end, comparator);
@@ -536,13 +529,14 @@
           this.left = new BVHNode(objects, start, mid, time0, time1);
           this.right = new BVHNode(objects, mid, end, time0, time1);
 
-          const boxLeft = HittableGeometryList.boundingBox(slicedLeft, time0, time1);
-          const boxRight = HittableGeometryList.boundingBox(slicedRight, time0, time1);
-          if(!boxLeft || !boxRight) {
-            console.log("no bounding box in bvh node");
-          }
-          this.box = AABB.surroundingBox(boxLeft, boxRight);
+          boxLeft = HittableGeometryList.boundingBox(slicedLeft, time0, time1);
+          boxRight = HittableGeometryList.boundingBox(slicedRight, time0, time1);
         }
+
+        if(!boxLeft || !boxRight) {
+          console.log("no bounding box in bvh node");
+        }
+        this.box = AABB.surroundingBox(boxLeft, boxRight);
       }
 
       // TODO: return hitinfo
@@ -2438,8 +2432,8 @@
     // requestAnimationFrame(tick);
 
     const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
-    console.log("=====")
-    console.log(bvhRoot);
+    // for debug
+    // console.log(bvhRoot);
   </script>
 </body>
 </html>
