@@ -15,3 +15,7 @@
 [Photorealism](https://booth.pm/ja/items/1159865)
 
 [単位球体内の一様分布 ： 3次元](https://wasan.hatenablog.com/entry/2014/01/14/060137)
+
+[Generate Random Points over the Disk](https://rh8liuqy.github.io/Uniform_Disk.html)
+
+[週末レイトレーシング (翻訳)](https://inzkyk.xyz/ray_tracing_in_one_weekend/)
