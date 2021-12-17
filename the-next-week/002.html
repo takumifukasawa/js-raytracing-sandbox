@@ -533,27 +533,35 @@
         this.box = AABB.surroundingBox(boxLeft, boxRight);
       }
 
-      // TODO: return hitinfo
-      static hit(bvhNode, ray, tmin, tmax, hitInfo) {
-        if(AABB.hit(box, ray, tmin, tmax)) {
-          return null;
+      static hit(bvhNode, ray, tmin, tmax) {
+        // 末端
+        if(bvhNode.type) {
+          const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
+          const box = geometryClass.boundingBox(bvhNode, t0, t1);
+          if(!AABB.hit(box, ray, tMin, tMax)) {
+            return null;
+          }
+          return geometryClass(bvhNode.type).hit(bvhNode, ray, tMin, tMax);
         }
-        const hitLeft = bvhNode.left.hit(
-          ray,
-          tmin,
-          tmax,
-          hitInfo
-        );
 
-        // TODO: hitLeftが存在していたらすぐ返せばよさそう？
+        // 末端じゃない場合、hitしたら再度
+        if(AABB.hit(bvhNode.box, ray, tmin, tmax)) {
+          const hitLeft = BVHNode.hit(
+            left,
+            ray,
+            tmin,
+            tmax,
+          );
+          const hitRight = BVHNode.hit(
+            right,
+            ray,
+            tmin,
+            !!hitLeft ? hitLeft.distance : tmax,
+          );
+          return hitLeft ? hitLeft : hitRight;
+        }
 
-        const hitRight = bvhNode.right.hit(
-          ray,
-          tmin,
-          !!hitLeft ? hitLeft.distance : tmax,
-          hitInfo
-        );
-        return hitLeft ? hitLeft : hitRight;
+        return null;
       }
     }
   </script>
@@ -1753,7 +1761,7 @@
         });
       }
 
-      static boundingBox(sphere, t0, t1) {
+      static boundingBox(sphere) {
         return new AABB(
           Vector3.subVectors(sphere.center, Vector3.fill(sphere.radius)),
           Vector3.addVectors(sphere.center, Vector3.fill(sphere.radius)),
@@ -1837,7 +1845,8 @@
         });
       }
 
-      static boundingBox(sphere, t0, t1) {
+      // static boundingBox(sphere, t0, t1) {
+      static boundingBox(sphere) {
         const center0 = HittableMovingSphereGeometry.center(sphere, sphere.time0);
         const box0 = new AABB(
           Vector3.subVectors(center0, Vector3.fill(sphere.radius)),
