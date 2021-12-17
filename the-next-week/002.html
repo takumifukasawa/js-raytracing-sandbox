@@ -373,17 +373,17 @@
         this.max = b;
       }
 
-      static getMinMax(aabb, ray, key) {
-        const t0 = Math.min(
-          (aabb.min[key] - ray.origin[key]) / ray.direction[key],
-          (aabb.max[key] - ray.origin[key]) / ray.direction[key]
-        );
-        const t1 = Math.max(
-          (aabb.min[key] - ray.origin[key]) / ray.direction[key],
-          (aabb.max[key] - ray.origin[key]) / ray.direction[key]
-        );
-        return { t0, t1 };
-      }
+      // static getMinMax(aabb, ray, key) {
+      //   const t0 = Math.min(
+      //     (aabb.min[key] - ray.origin[key]) / ray.direction[key],
+      //     (aabb.max[key] - ray.origin[key]) / ray.direction[key]
+      //   );
+      //   const t1 = Math.max(
+      //     (aabb.min[key] - ray.origin[key]) / ray.direction[key],
+      //     (aabb.max[key] - ray.origin[key]) / ray.direction[key]
+      //   );
+      //   return { t0, t1 };
+      // }
 
       // hit(ray, tmin, tmax) {
       //   let tmpMin = tmin;
@@ -431,9 +431,9 @@
           Math.min(box0.min.z, box1.min.z),
         );
         const big = new Vector3(
-          Math.min(box0.max.x, box1.max.x),
-          Math.min(box0.max.y, box1.max.y),
-          Math.min(box0.max.z, box1.max.z),
+          Math.max(box0.max.x, box1.max.x),
+          Math.max(box0.max.y, box1.max.y),
+          Math.max(box0.max.z, box1.max.z),
         );
         return new AABB(small, big);
       }
@@ -2436,7 +2436,7 @@
 
     const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
     // for debug
-    // console.log(bvhRoot);
+    console.log(bvhRoot);
   </script>
 </body>
 </html>
