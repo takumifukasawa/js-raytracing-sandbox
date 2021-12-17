@@ -492,7 +492,6 @@
         if(objectSpan == 1) {
           this.left = objects[start];
           this.right = objects[start];
-          console.log("objectSpan: 1", end, start, this.left, this.right)
 
           // TODO: constructorのtime0,time1をわたすべき？
           const boxLeft = BaseHittableGeometry
@@ -515,7 +514,6 @@
             this.left = objects[start + 1];
             this.right = objects[start];
           }
-          console.log("objectSpan: 2", end, start, this.left, this.right)
 
           // TODO: constructorのtime0,time1をわたすべき？
           const boxLeft = BaseHittableGeometry
@@ -533,12 +531,13 @@
           ArrayUtilities.sortSplice(objects, start, end, comparator);
           // TODO: needs floor ??
           const mid = Math.floor(start + objectSpan / 2);
+          const slicedLeft = [...objects].splice(start, mid - start + 1);
+          const slicedRight = [...objects].splice(mid, end - mid + 1);
           this.left = new BVHNode(objects, start, mid, time0, time1);
           this.right = new BVHNode(objects, mid, end, time0, time1);
-          console.log(`objectSpan: ${objectSpan}`, end, start, this.left, this.right)
 
-          const boxLeft = HittableGeometryList.boundingBox(objects, time0, time1);
-          const boxRight = HittableGeometryList.boundingBox(objects, time0, time1);
+          const boxLeft = HittableGeometryList.boundingBox(slicedLeft, time0, time1);
+          const boxRight = HittableGeometryList.boundingBox(slicedRight, time0, time1);
           if(!boxLeft || !boxRight) {
             console.log("no bounding box in bvh node");
           }
