@@ -477,7 +477,8 @@
       box;
 
       static createRoot(objects, time0, time1) {
-        console.log("creat BVHNode root", objects.length, time0, time1);
+        // for debug
+        // console.log("creat BVHNode root", objects.length, time0, time1);
         return new BVHNode(objects, 0, objects.length, time0, time1);
       }
 
@@ -541,56 +542,112 @@
         this.box = AABB.surroundingBox(boxLeft, boxRight);
       }
 
-      static hit(bvhNode, ray, tmin, tmax) {
-        console.log("-----------");
-
-        const checkHitLastNode = (node) => {
-          const geometryClass = BaseHittableGeometry.getGeometryClass(node.type);
-          const box = geometryClass.boundingBox(node, node.time0, node.time1);
-          // for debug
-          // console.log("==============")
-          // console.log("last node", bvhNode, bvhNode.type);
-          console.log(box, AABB.hit(box, ray, tmin, tmax));
-          if(!AABB.hit(box, ray, tmin, tmax)) {
-            return null;
-          }
-          return geometryClass.hit(node, ray, tmin, tmax);
+      static checkHitLastNode(bvhNode, ray, tmin, tmax) {
+        // console.log(bvhNode, ray, tmin, tmax)
+        const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
+        const box = geometryClass.boundingBox(bvhNode, bvhNode.time0, bvhNode.time1);
+        if(!AABB.hit(box, ray, tmin, tmax)) {
+          return null;
         }
+        const hitInfo = geometryClass.hit(bvhNode, ray, tmin, tmax);
+        // console.log(hitInfo);
+        return hitInfo;
+      }
 
-        const checkHitBox = (node, r, tFrom, tTo) => {
-          if(node.type) {
-            return node;
+      static checkHitBox(bvhNode, ray, tmin, tmax) {
+        if(bvhNode.type) {
+          return { bvhNode, ray, tmin, tmax };
+        }
+        // 末端じゃない場合、hitしたら再度
+        if(AABB.hit(bvhNode.box, ray, tmin, tmax)) {
+          const hitLeft = BVHNode.checkHitBox(
+            bvhNode.left,
+            ray,
+            tmin,
+            tmax,
+          );
+
+          const hitRight = BVHNode.checkHitBox(
+            bvhNode.right,
+            ray,
+            tmin,
+            !!hitLeft.distance ? hitLeft.distance : tmax
+          );
+
+          console.log(hitLeft, hitRight)
+
+          if(hitRight && !hitRight.type) {
+            return {
+              bvhNode: hitRight.vbhNode,
+              ray: hitRight.ray,
+              tmin: hitRight.tmin,
+              tmax: hitRight.tmax
+            }
           }
-          // 末端じゃない場合、hitしたら再度
-          if(AABB.hit(node.box, r, tFrom, tTo)) {
-            console.log(node.left)
-            const hitLeft = checkHitBox(
-              node.left,
-              r,
-              tFrom,
-              tTo,
-            );
-            const hitRight = checkHitBox(
-              node.right,
-              r,
-              tFrom,
-              !!hitLeft ? hitLeft.distance : tTo,
-            );
-
-            return hitRight ? hitRight : hitLeft;
-            if(hitRight) {
-              return hitRight;
+          if(hitLeft && !hitLeft.type) {
+            return {
+              bvhNode: hitLeft.vbhNode,
+              ray: hitLeft.ray,
+              tmin: hitLeft.tmin,
+              tmax: hitLeft.tmax
             }
-            if(hitLeft) {
-              return hitLeft;
-            }
-            return null;
           }
           return null;
         }
+        return null;
+      }
 
-        const node = checkHitBox(bvhNode, ray, tmin, tmax);
-        return node ? checkHitLastNode(node) : null;
+      static hit(bvhNode, ray, tmin, tmax) {
+        // const checkHitLastNode = (node) => {
+        //   const geometryClass = BaseHittableGeometry.getGeometryClass(node.type);
+        //   const box = geometryClass.boundingBox(node, node.time0, node.time1);
+        //   if(!AABB.hit(box, ray, tmin, tmax)) {
+        //     return null;
+        //   }
+        //   return geometryClass.hit(node, ray, tmin, tmax);
+        // }
+
+        // const checkHitBox = (node, r, tFrom, tTo) => {
+        //   if(node.type) {
+        //     return node;
+        //   }
+        //   // 末端じゃない場合、hitしたら再度
+        //   if(AABB.hit(node.box, r, tFrom, tTo)) {
+        //     const hitLeft = checkHitBox(
+        //       node.left,
+        //       r,
+        //       tFrom,
+        //       tTo,
+        //     );
+        //     const hitRight = checkHitBox(
+        //       node.right,
+        //       r,
+        //       tFrom,
+        //       !!hitLeft ? hitLeft.distance : tTo,
+        //     );
+
+        //     return hitRight ? hitRight : hitLeft;
+        //     if(hitRight) {
+        //       return hitRight;
+        //     }
+        //     if(hitLeft) {
+        //       return hitLeft;
+        //     }
+        //     return null;
+        //   }
+        //   return null;
+        // }
+
+        const lastNode = BVHNode.checkHitBox(bvhNode, ray, tmin, tmax);
+        console.log(lastNode)
+        return lastNode
+          ? BVHNode.checkHitLastNode(
+              lastNode.bvhNode,
+              lastNode.ray,
+              lastNode.tmin,
+              lastNode.tmax
+          )
+          : null;
 
         // // 末端
         // if(bvhNode.type) {
