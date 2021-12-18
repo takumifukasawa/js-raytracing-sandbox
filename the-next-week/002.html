@@ -542,92 +542,34 @@
       }
 
       static hit(bvhNode, ray, tmin, tmax) {
-        console.log("-----------");
-
-        const checkHitLastNode = (node) => {
-          const geometryClass = BaseHittableGeometry.getGeometryClass(node.type);
-          const box = geometryClass.boundingBox(node, node.time0, node.time1);
-          // for debug
-          // console.log("==============")
-          // console.log("last node", bvhNode, bvhNode.type);
-          console.log(box, AABB.hit(box, ray, tmin, tmax));
+        // 末端
+        if(bvhNode.type) {
+          const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
+          const box = geometryClass.boundingBox(bvhNode, bvhNode.time0, bvhNode.time1);
           if(!AABB.hit(box, ray, tmin, tmax)) {
             return null;
           }
-          return geometryClass.hit(node, ray, tmin, tmax);
+          return geometryClass.hit(bvhNode, ray, tmin, tmax);
         }
 
-        const checkHitBox = (node, r, tFrom, tTo) => {
-          if(node.type) {
-            return node;
-          }
-          // 末端じゃない場合、hitしたら再度
-          if(AABB.hit(node.box, r, tFrom, tTo)) {
-            console.log(node.left)
-            const hitLeft = checkHitBox(
-              node.left,
-              r,
-              tFrom,
-              tTo,
-            );
-            const hitRight = checkHitBox(
-              node.right,
-              r,
-              tFrom,
-              !!hitLeft ? hitLeft.distance : tTo,
-            );
-
-            return hitRight ? hitRight : hitLeft;
-            if(hitRight) {
-              return hitRight;
-            }
-            if(hitLeft) {
-              return hitLeft;
-            }
-            return null;
-          }
+        if(!AABB.hit(bvhNode.box, ray, tmin, tmax)) {
           return null;
         }
 
-        const node = checkHitBox(bvhNode, ray, tmin, tmax);
-        return node ? checkHitLastNode(node) : null;
-
-        // // 末端
-        // if(bvhNode.type) {
-        //   const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
-        //   const box = geometryClass.boundingBox(bvhNode, bvhNode.time0, bvhNode.time1);
-        //   // for debug
-        //   console.log("==============")
-        //   console.log("last node", bvhNode, bvhNode.type);
-        //   console.log(box, AABB.hit(box, ray, tmin, tmax));
-        //   if(!AABB.hit(box, ray, tmin, tmax)) {
-        //     return null;
-        //   }
-        //   return geometryClass.hit(bvhNode, ray, tmin, tmax);
-        // }
-
-        // // for debug
-        // // console.log(bvhNode.box, ray, tmin, tmax)
-
-        // // 末端じゃない場合、hitしたら再度
-        // if(AABB.hit(bvhNode.box, ray, tmin, tmax)) {
-        //   const hitLeft = BVHNode.hit(
-        //     bvhNode.left,
-        //     ray,
-        //     tmin,
-        //     tmax,
-        //   );
-        //   const hitRight = BVHNode.hit(
-        //     bvhNode.right,
-        //     ray,
-        //     tmin,
-        //     !!hitLeft ? hitLeft.distance : tmax,
-        //   );
-
-        //   return hitRight ? hitRight : hitLeft;
-        // }
-
-        // return null;
+        const hitLeft = BVHNode.hit(
+          bvhNode.left,
+          ray,
+          tmin,
+          tmax,
+        );
+        const hitRight = BVHNode.hit(
+          bvhNode.right,
+          ray,
+          tmin,
+          !!hitLeft ? hitLeft.distance : tmax,
+        );
+ 
+        return hitRight || hitLeft || null;
       }
     }
   </script>
@@ -1614,9 +1556,9 @@
 
         const tryExecWorker = async (worker) => {
           // 負荷対策でちょっと間引く
-          // await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
+          await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
           // for debug
-          await wait(1000);
+          // await wait(1000);
 
           // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
           const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
@@ -2164,7 +2106,7 @@
       const resultColor = Vector3.one;
       let currentRay = ray;
 
-      for(let i = maxRayIterationCount; i > 0; i--) {
+      for(let i = 0; i < maxRayIterationCount; i++) {
         // hittable geometry list を渡している場合
         // const hitInfo = HittableGeometryList.hit(
         //   scene.hitObjects,
@@ -2172,12 +2114,16 @@
         //   0.001,
         //   1000
         // );
+
+        // console.log('\u001b[31m' + "---------------------------------------------");
         const hitInfo = BVHNode.hit(
           scene,
           currentRay,
           0.001,
           1000, 
         );
+        // console.log("--- get hit info ---")
+        // console.log(hitInfo)
  
         if(!hitInfo) {
           const rayDir = currentRay.direction.normalize();
@@ -2285,20 +2231,20 @@
     // const MAX_RAY_ITERATION_COUNT = 64;
 
     // middle
-    // const CANVAS_WIDTH = 320;
-    // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 128;
-    // const SAMPLE_COUNT_PER_PIXEL = 8;
-    // const MAX_WORKER_NUM = 8;
-    // const MAX_RAY_ITERATION_COUNT = 64;
-
-    // constants for debug
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 1;
-    const SAMPLE_COUNT_PER_PIXEL = 1;
-    const MAX_WORKER_NUM = 1;
+    const DRAW_POINT_NUM = 128;
+    const SAMPLE_COUNT_PER_PIXEL = 8;
+    const MAX_WORKER_NUM = 8;
     const MAX_RAY_ITERATION_COUNT = 64;
+
+    // constants for debug
+    // const CANVAS_WIDTH = 320;
+    // const CANVAS_HEIGHT = 180;
+    // const DRAW_POINT_NUM = 1;
+    // const SAMPLE_COUNT_PER_PIXEL = 1;
+    // const MAX_WORKER_NUM = 1;
+    // const MAX_RAY_ITERATION_COUNT = 64;
 
     // const createScene = () => {
     //   const scene = new HittableGeometryList();
