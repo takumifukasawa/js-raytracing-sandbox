@@ -408,7 +408,7 @@
         const keys = ["x", "y", "z"];
         for(let i = 0; i < 3; i++) {
           const key = keys[i];
-          const invD = 1 / ray.direcion[key];
+          const invD = 1 / ray.direction[key];
           let t0 = Vector3.subVectors(box.min[key], ray.origin[key]).mulScalar(invD);
           let t1 = Vector3.subVectors(box.max[key], ray.origin[key]).mulScalar(invD);
           if(invD < 0) {
@@ -537,23 +537,27 @@
         // 末端
         if(bvhNode.type) {
           const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
-          const box = geometryClass.boundingBox(bvhNode, t0, t1);
-          if(!AABB.hit(box, ray, tMin, tMax)) {
+          const box = geometryClass.boundingBox(bvhNode, bvhNode.time0, bvhNode.time1);
+          console.log("==============")
+          console.log("last node", bvhNode);
+          console.log(box, AABB.hit(box, ray, tmin, tmax));
+          if(!AABB.hit(box, ray, tmin, tmax)) {
             return null;
           }
-          return geometryClass(bvhNode.type).hit(bvhNode, ray, tMin, tMax);
+          return geometryClass.hit(bvhNode, ray, tmin, tmax);
         }
 
+        // console.log(bvhNode.box, ray, tmin, tmax)
         // 末端じゃない場合、hitしたら再度
         if(AABB.hit(bvhNode.box, ray, tmin, tmax)) {
           const hitLeft = BVHNode.hit(
-            left,
+            bvhNode.left,
             ray,
             tmin,
             tmax,
           );
           const hitRight = BVHNode.hit(
-            right,
+            bvhNode.right,
             ray,
             tmin,
             !!hitLeft ? hitLeft.distance : tmax,
@@ -561,7 +565,7 @@
           return hitLeft ? hitLeft : hitRight;
         }
 
-        return null;
+        // return null;
       }
     }
   </script>
@@ -2435,8 +2439,19 @@
     // requestAnimationFrame(tick);
 
     const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
-    // for debug
     console.log(bvhRoot);
+    // for debug
+    const hitInfo = BVHNode.hit(
+      bvhRoot,
+      new Ray(
+        new Vector3(0, 0, 1),
+        new Vector3(0, 0, -1),
+        MathUtilities.getRandomRange(0, 1)
+      ),
+      0.001,
+      1000, 
+    );
+    console.log("result hitInfo", hitInfo);
   </script>
 </body>
 </html>
