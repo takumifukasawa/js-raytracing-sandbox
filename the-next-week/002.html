@@ -2444,13 +2444,14 @@
     const hitInfo = BVHNode.hit(
       bvhRoot,
       new Ray(
-        new Vector3(0, 0, 1),
+        new Vector3(0, 0.4999, 1),
         new Vector3(0, 0, -1),
         MathUtilities.getRandomRange(0, 1)
       ),
       0.001,
       1000, 
     );
+    console.log("---------");
     console.log("result hitInfo", hitInfo);
   </script>
 </body>
