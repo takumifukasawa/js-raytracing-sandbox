@@ -542,7 +542,27 @@
       }
 
       static hit(bvhNode, ray, tmin, tmax) {
-        console.log("bvhnode hit: ", bvhNode, ray, tmin, tmax)
+        if(bvhNode.box && AABB.hit(bvhNode.box, ray, tmin, tmax)) {
+          const hitLeft = BVHNode.hit(
+            bvhNode.left,
+            ray,
+            tmin,
+            tmax,
+          );
+          const hitRight = BVHNode.hit(
+            bvhNode.right,
+            ray,
+            tmin,
+            !!hitLeft ? hitLeft.distance : tmax,
+          );
+
+          // console.log("hitLeft", hitLeft)
+          // console.log("hitRight", hitRight)
+
+          return hitRight || hitLeft || null;
+        }
+ 
+        // console.log("bvhnode hit: ", bvhNode, ray, tmin, tmax)
         // 末端
         if(bvhNode.type) {
           // console.log("last node", bvhNode)
@@ -554,27 +574,7 @@
           return geometryClass.hit(bvhNode, ray, tmin, tmax);
         }
 
-        if(!AABB.hit(bvhNode.box, ray, tmin, tmax)) {
-          return null;
-        }
-
-        const hitLeft = BVHNode.hit(
-          bvhNode.left,
-          ray,
-          tmin,
-          tmax,
-        );
-        const hitRight = BVHNode.hit(
-          bvhNode.right,
-          ray,
-          tmin,
-          !!hitLeft ? hitLeft.distance : tmax,
-        );
-
-        // console.log("hitLeft", hitLeft)
-        // console.log("hitRight", hitRight)
-
-        return hitRight || hitLeft || null;
+        return null;
       }
     }
   </script>
@@ -1561,9 +1561,9 @@
 
         const tryExecWorker = async (worker) => {
           // 負荷対策でちょっと間引く
-          // await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
+          await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
           // for debug
-          await wait(1000);
+          // await wait(1000);
 
           // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
           const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
@@ -1594,7 +1594,7 @@
 
             this.updateRenderTarget();
 
-            // await tryExecWorker(worker)
+            await tryExecWorker(worker)
           };
 
           worker.onerror = (e) => {
@@ -2120,7 +2120,7 @@
         //   1000
         // );
 
-        console.log('\u001b[31m' + "---------------------------------------------");
+        // console.log('\u001b[31m' + "---------------------------------------------");
         const hitInfo = BVHNode.hit(
           scene,
           currentRay,
@@ -2128,7 +2128,7 @@
           1000, 
         );
         // console.log("--- get hit info ---")
-        console.log('\u001b[31m' + "hitInfo", hitInfo)
+        // console.log('\u001b[31m' + "hitInfo", hitInfo)
  
         if(!hitInfo) {
           const rayDir = currentRay.direction.normalize();
@@ -2236,20 +2236,20 @@
     // const MAX_RAY_ITERATION_COUNT = 64;
 
     // middle
-    // const CANVAS_WIDTH = 320;
-    // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 128;
-    // const SAMPLE_COUNT_PER_PIXEL = 8;
-    // const MAX_WORKER_NUM = 8;
-    // const MAX_RAY_ITERATION_COUNT = 64;
-
-    // constants for debug
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 1;
-    const SAMPLE_COUNT_PER_PIXEL = 1;
-    const MAX_WORKER_NUM = 1;
+    const DRAW_POINT_NUM = 128;
+    const SAMPLE_COUNT_PER_PIXEL = 8;
+    const MAX_WORKER_NUM = 8;
     const MAX_RAY_ITERATION_COUNT = 64;
+
+    // constants for debug
+    // const CANVAS_WIDTH = 320;
+    // const CANVAS_HEIGHT = 180;
+    // const DRAW_POINT_NUM = 1;
+    // const SAMPLE_COUNT_PER_PIXEL = 1;
+    // const MAX_WORKER_NUM = 1;
+    // const MAX_RAY_ITERATION_COUNT = 64;
 
     // const createScene = () => {
     //   const scene = new HittableGeometryList();
