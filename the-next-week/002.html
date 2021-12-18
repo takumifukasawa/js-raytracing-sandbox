@@ -565,7 +565,7 @@
             tmin,
             !!hitLeft ? hitLeft.distance : tmax,
           );
-          return hitLeft ? hitLeft : hitRight;
+          return hitRight ? hitRight : hitLeft;
         }
 
         // return null;
@@ -2102,19 +2102,18 @@
 
       for(let i = maxRayIterationCount; i > 0; i--) {
         // hittable geometry list を渡している場合
-        const hitInfo = HittableGeometryList.hit(
-          scene.hitObjects,
-          currentRay,
-          0.001,
-          1000
-          // Infinity
-        );
-        // const hitInfo = BVHNode.hit(
-        //   scene,
+        // const hitInfo = HittableGeometryList.hit(
+        //   scene.hitObjects,
         //   currentRay,
         //   0.001,
-        //   1000, 
+        //   1000
         // );
+        const hitInfo = BVHNode.hit(
+          scene,
+          currentRay,
+          0.001,
+          1000, 
+        );
  
         if(!hitInfo) {
           const rayDir = currentRay.direction.normalize();
@@ -2427,8 +2426,8 @@
 
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
       raytraceRenderer.start({
-        // scene: bvhRoot,
-        scene,
+        scene: bvhRoot,
+        // scene,
         camera,
         orderedPixelIndexes,
         maxWorkerNum: MAX_WORKER_NUM,
