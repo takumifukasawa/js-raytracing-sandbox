@@ -37,6 +37,13 @@
       return canvas;
     };
 
+    class StringUtilities {
+      // ref: https://gist.github.com/6174/6062387
+      static generateRandomString() {
+        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      }
+    }
+
     class MathUtilities {
       static degreesToRadians (degree) {
         return degree * Math.PI / 180;
@@ -1697,7 +1704,7 @@
           throw "should specify type";
         }
         this.type = type;
-        this.id = Math.random().toString(32).substring(2);
+        this.id = StringUtilities.generateRandomString();
       }
 
       hit(ray, tMin, tMax) {
@@ -2388,11 +2395,11 @@
         new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
       ));
 
-      scene.add(new HittableSphereGeometry(
-        new Vector3(2.0, 0, 1),
-        0.5,
-        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
-      ));
+      // scene.add(new HittableSphereGeometry(
+      //   new Vector3(2.0, 0, 1),
+      //   0.5,
+      //   new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      // ));
 
 
 
