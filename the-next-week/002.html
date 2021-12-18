@@ -476,7 +476,6 @@
       constructor(list, start, end, time0, time1) {
         const objects = [...list];
         const axis = MathUtilities.getRandomInt(0, 2);
-        // const axisKeys = ["x", "y", "z"];
 
         let comparator;
         if(axis === 0) {
@@ -527,9 +526,10 @@
           boxRight = HittableGeometryList.boundingBox(slicedRight, time0, time1);
         }
 
-        if(!boxLeft || !boxRight) {
-          console.log("no bounding box in bvh node");
-        }
+        // for debug
+        // if(!boxLeft || !boxRight) {
+        //   // console.log("no bounding box in bvh node");
+        // }
         this.box = AABB.surroundingBox(boxLeft, boxRight);
       }
 
@@ -538,16 +538,19 @@
         if(bvhNode.type) {
           const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
           const box = geometryClass.boundingBox(bvhNode, bvhNode.time0, bvhNode.time1);
-          console.log("==============")
-          console.log("last node", bvhNode);
-          console.log(box, AABB.hit(box, ray, tmin, tmax));
+          // for debug
+          // console.log("==============")
+          // console.log("last node", bvhNode);
+          // console.log(box, AABB.hit(box, ray, tmin, tmax));
           if(!AABB.hit(box, ray, tmin, tmax)) {
             return null;
           }
           return geometryClass.hit(bvhNode, ray, tmin, tmax);
         }
 
+        // for debug
         // console.log(bvhNode.box, ray, tmin, tmax)
+
         // 末端じゃない場合、hitしたら再度
         if(AABB.hit(bvhNode.box, ray, tmin, tmax)) {
           const hitLeft = BVHNode.hit(
@@ -2092,18 +2095,27 @@
   <script id="worker-script">
     'use strict';
 
+    // scene: bvhNode
     const getSceneColor = (ray, scene, maxRayIterationCount) => {
       const resultColor = Vector3.one;
       let currentRay = ray;
 
       for(let i = maxRayIterationCount; i > 0; i--) {
+        // hittable geometry list を渡している場合
         const hitInfo = HittableGeometryList.hit(
           scene.hitObjects,
           currentRay,
           0.001,
-          Infinity
+          1000
+          // Infinity
         );
-
+        // const hitInfo = BVHNode.hit(
+        //   scene,
+        //   currentRay,
+        //   0.001,
+        //   1000, 
+        // );
+ 
         if(!hitInfo) {
           const rayDir = currentRay.direction.normalize();
           const t = 0.5 * (rayDir.y + 1.0);
@@ -2212,8 +2224,8 @@
     // middle
     const CANVAS_WIDTH = 320;
     const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 256;
-    const SAMPLE_COUNT_PER_PIXEL = 64;
+    const DRAW_POINT_NUM = 128;
+    const SAMPLE_COUNT_PER_PIXEL = 8;
     const MAX_WORKER_NUM = 8;
     const MAX_RAY_ITERATION_COUNT = 64;
 
@@ -2388,6 +2400,7 @@
 
     // const scene = createRandomScene();
     const scene = createScene();
+    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
 
     // const cameraPosition = new Vector3(13, 2, 3);
     const cameraPosition = new Vector3(3, 3, 2);
@@ -2414,6 +2427,7 @@
 
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
       raytraceRenderer.start({
+        // scene: bvhRoot,
         scene,
         camera,
         orderedPixelIndexes,
@@ -2435,24 +2449,24 @@
     // }
     // window.addEventListener('resize', () => setSize());
 
-    // start();
-    // requestAnimationFrame(tick);
+    start();
+    requestAnimationFrame(tick);
 
-    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
-    console.log(bvhRoot);
-    // for debug
-    const hitInfo = BVHNode.hit(
-      bvhRoot,
-      new Ray(
-        new Vector3(0, 0.4999, 1),
-        new Vector3(0, 0, -1),
-        MathUtilities.getRandomRange(0, 1)
-      ),
-      0.001,
-      1000, 
-    );
-    console.log("---------");
-    console.log("result hitInfo", hitInfo);
+    // const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
+    // console.log(bvhRoot);
+    // // for debug
+    // const hitInfo = BVHNode.hit(
+    //   bvhRoot,
+    //   new Ray(
+    //     new Vector3(0, 0.4999, 1),
+    //     new Vector3(0, 0, -1),
+    //     MathUtilities.getRandomRange(0, 1)
+    //   ),
+    //   0.001,
+    //   1000, 
+    // );
+    // console.log("---------");
+    // console.log("result hitInfo", hitInfo);
   </script>
 </body>
 </html>
