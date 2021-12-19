@@ -2527,14 +2527,15 @@
         //   0.001,
         //   1000, 
         // );
- 
+
+        // sky color
         if(!hitInfo) {
           const rayDir = currentRay.direction.normalize();
           const t = 0.5 * (rayDir.y + 1.0);
           resultColor.mul(
             new Vector3(1.0, 1.0, 1.0)
               .mulScalar(1.0 - t)
-              .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t))
+              .add(new Vector3(0.7, 0.6, 0.4).mulScalar(t))
           );
           break;
         }
@@ -2622,36 +2623,6 @@
     const createScene = () => {
       const scene = new HittableGeometryList();
 
-      // floor
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, -200, 0),
-        200,
-        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
-      ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(-1.5, 0.5, -0.5),
-        0.5,
-        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
-      ));
-
-      // scene.add(new HittableSphereGeometry(
-      //   new Vector3(-1.0, 0, 0),
-      //   0.5,
-      //   new RaytraceDielectricMaterial(1.5)
-      // ));
-      // scene.add(new HittableSphereGeometry(
-      //   new Vector3(-1.0, 0, 0),
-      //   -0.4,
-      //   new RaytraceDielectricMaterial(1.5)
-      // ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(1.5, 0.5, -0.5),
-        0.5,
-        new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
-      ));
-
       const objText = `
 v -0.600000 1.200000 -0.600000
 v -0.600000 1.200000 0.600000
@@ -2679,11 +2650,52 @@ f 3/2/8 4/5/8 6/6/8
 
       const objData = ParserUtilities.parseObj(objText);
 
+      // ground 
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, -200, 0),
+        200,
+        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0.7))
+      ));
+
+      // left
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-2, 0.5, 0),
+        0.5,
+        new RaytraceMetalMaterial(new Vector3(0.5, 0.2, 0.1), 0.125)
+      ));
+
+      // front
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0.5, 2),
+        0.5,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0.5, 2),
+        -0.4,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+
+      // right
+      scene.add(new HittableSphereGeometry(
+        new Vector3(2, 0.5, 0),
+        0.5,
+        new RaytraceMetalMaterial(new Vector3(0.1, 0.2, 0.5), 0.25)
+      ));
+
+      // back
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0.5, -2),
+        0.5,
+        new RaytraceLambertianMaterial(new Vector3(0.7, 0.7, 0.4))
+      ));
+
+      // polygons
       scene.add(new HittablePolygonsGeometry(
         objData.positions,
         objData.normals,
         objData.indices,
-        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.3), 0.1)
       ));
 
       return scene;
@@ -2702,7 +2714,7 @@ f 3/2/8 4/5/8 6/6/8
       threadNum: Math.min(8, window.navigator.hardwareConcurrency),
       drawPointNum: 128,
       initialSampleCountPerPixel: 2,
-      sampleCountPerPixelStep: 4,
+      sampleCountPerPixelStep: 2,
       maxSampleCountPerPixel: 256,
       maxRayIterationCount: 16,
       // for debug
