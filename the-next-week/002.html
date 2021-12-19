@@ -1691,18 +1691,10 @@
         this.#beginDrawPointIndex = 0;
 
         const tryExecWorker = async (worker) => {
-          // for debug
-          // await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
-          // if(waitMsec >= 0) {
-          //   console.log(waitMsec)
-          // }
-          // await wait(1000);
-
           const pixelIndexes = this.#updatePixelIndexes.slice(
             this.#beginDrawPointIndex,
             this.#beginDrawPointIndex + this.#drawPointNum
           );
-          this.#beginDrawPointIndex += this.#drawPointNum;
 
           const args = {
             scene,
@@ -1717,10 +1709,8 @@
           if(pixelIndexes.length > 0) {
             worker.postMessage([args]);
           } else {
-            // 60FPSずつ再帰呼び出しして待つ
-            await wait(MathUtilities.getRandomRange(1000 / 60));
-            tryExecWorker(worker);
-            // console.log("end worker !")
+            await wait(1000 / 60);
+            await tryExecWorker(worker);
           }
         }
 
@@ -1735,7 +1725,8 @@
 
             this.updateRenderTarget();
 
-            await tryExecWorker(worker)
+            this.#beginDrawPointIndex += positions.length;
+            tryExecWorker(worker)
           };
 
           worker.onerror = (e) => {
@@ -2557,9 +2548,9 @@
       width: 160,
       height: 90,
       threadNum: Math.min(8, window.navigator.hardwareConcurrency),
-      drawPointNum: 128,
-      sampleCountPerPixel: 2,
-      maxRayIterationCount: 4,
+      drawPointNum: 256,
+      sampleCountPerPixel: 32,
+      maxRayIterationCount: 64,
     } 
 
     const createCamera = (offset = Vector3.zero) => {
@@ -2613,15 +2604,11 @@
 
       init();
 
-      // TODO: aspectだけアップデートしたい
-      raytraceStates.camera = createCamera();
-
       raytraceRenderer.start({
         // scene: bvhRoot,
         scene,
-        camera: raytraceStates.camera
-        // camera,
-        // ...raytraceStates
+        // TODO: aspectだけアップデートしたい
+        camera: createCamera()
       });
     }
 
@@ -2639,22 +2626,8 @@
       }
       coord.x *= aspect;
 
-      // raytraceStates.camera = ;
-
-      // TODO: stopせずcameraの位置だけ変えたい
-      // raytraceRenderer.stop();
-
+      // TODO: camera position だけ変えたい
       raytraceRenderer.updateCamera(createCamera(new Vector3(coord.x * 3, coord.y, 0)));
-
-      // raytraceRenderer.start({
-      //   // scene: bvhRoot,
-      //   scene,
-      //   camera: raytraceStates.camera
-      //   // camera,
-      //   // orderedPixelIndexes,
-      //   // ...raytraceStates
-      // });
- 
     }
 
     const tick = (time) => {
@@ -2671,6 +2644,7 @@
     console.log("---------");
     console.log(bvhRoot);
     console.log("---------");
+
     // // for debug
     // const hitInfo = BVHNode.hit(
     //   bvhRoot,
