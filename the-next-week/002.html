@@ -111,16 +111,6 @@
       }
     }
 
-    const createWhite1x1 = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      canvas.width = 1;
-      canvas.height = 1;
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, 1, 1);
-      return canvas;
-    };
-
     class StringUtilities {
       // ref: https://gist.github.com/6174/6062387
       static generateRandomString() {
@@ -178,6 +168,19 @@
       }
     }
 
+    class TextureUtilities {
+      static createWhite1x1() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1;
+        canvas.height = 1;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 1, 1);
+        return canvas;
+      };
+    }
+
+    // 使ってない & たぶんいらない
     class FunctionWorker extends Worker {
       constructor(src) {
         const match = src.toString().match(/^.*\{.*\}$/gi);
@@ -1231,7 +1234,7 @@
 
       constructor({ gpu }) {
         this.#gpu = gpu;
-        this.#dummyTexture = createWhite1x1();
+        this.#dummyTexture = TextureUtilities.createWhite1x1();
       }
 
       setSize(width, height) {
