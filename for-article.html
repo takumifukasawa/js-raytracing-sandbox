@@ -1757,7 +1757,18 @@
         if(camera) {
           this.#camera = camera;
         }
+        // reset
         this.#beginDrawPointIndex = 0;
+        this.#currentSampleCountPerPixel = this.#initialSampleCountPerPixel;
+      }
+
+      isFinishedAllWorker() {
+        for(let i = 0; i < this.#workers.length; i++) {
+          if(!this.#workers[i].isFinished) {
+            return false;
+          }
+        }
+        return true;
       }
 
       start({ scene, camera }) {
@@ -1771,7 +1782,7 @@
 
         this.#beginDrawPointIndex = 0;
 
-        const tryExecWorker = async (worker) => {
+        const tryExecWorker = async (i) => {
           const pixelIndexes = this.#updatePixelIndexes.slice(
             this.#beginDrawPointIndex,
             this.#beginDrawPointIndex + this.#drawPointNum
@@ -1790,16 +1801,24 @@
           if(pixelIndexes.length > 0) {
             // for debug
             // await wait(1000);
-            worker.postMessage([args]);
+            this.#workers[i].worker.postMessage([args]);
           } else {
+            this.#workers[i].isFinished = true;
+            if(this.isFinishedAllWorker()) {
+              this.#beginDrawPointIndex = 0;
+              this.#currentSampleCountPerPixel += this.#sampleCountPerPixelStep;
+            }
             await wait(1000 / 60);
-            await tryExecWorker(worker);
+            await tryExecWorker(i);
           }
         }
 
         for(let i = 0; i < this.#threadNum; i++) {
           const worker = new Worker(this.#workerScriptUrl);
-          this.#workers.push(worker);
+          this.#workers.push({
+            isFinished: false,
+            worker
+          });
 
           worker.onmessage = async (e) => {
             const [{ positions, colors }] = e.data;
@@ -1809,14 +1828,14 @@
             this.updateRenderTarget();
 
             this.#beginDrawPointIndex += positions.length;
-            tryExecWorker(worker)
+            tryExecWorker(i)
           };
 
           worker.onerror = (e) => {
             console.error(e);
           }
 
-          tryExecWorker(worker);
+          tryExecWorker(i);
         }
       }
 
@@ -1838,7 +1857,7 @@
 
       stop() {
         for(let i = 0; i < this.#workers.length; i++) {
-          this.#workers[i].terminate();
+          this.#workers[i].worker.terminate();
         }
         this.#workers = [];
       }
