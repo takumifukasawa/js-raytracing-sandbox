@@ -81,7 +81,8 @@
         const label = document.createElement('p');
         const input = document.createElement('input');
       
-        label.style.margin = '0.5em 0';
+        label.style.marginTop = '0.1em';
+        label.style.paddingRight = '0.5em';
       
         input.type = 'range';
         input.min = min;
@@ -90,7 +91,7 @@
         input.step = step;
       
         const updateLabel = (value) => {
-          label.textContent = `[${name}] min: ${min}, max: ${max}, value: ${value}`;
+          label.textContent = `[${name} (${min} ~ ${max})] value: ${value} `;
         };
       
         input.addEventListener('input', (e) => {
