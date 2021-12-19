@@ -470,34 +470,6 @@
         this.max = b;
       }
 
-      // static getMinMax(aabb, ray, key) {
-      //   const t0 = Math.min(
-      //     (aabb.min[key] - ray.origin[key]) / ray.direction[key],
-      //     (aabb.max[key] - ray.origin[key]) / ray.direction[key]
-      //   );
-      //   const t1 = Math.max(
-      //     (aabb.min[key] - ray.origin[key]) / ray.direction[key],
-      //     (aabb.max[key] - ray.origin[key]) / ray.direction[key]
-      //   );
-      //   return { t0, t1 };
-      // }
-
-      // hit(ray, tmin, tmax) {
-      //   let tmpMin = tmin;
-      //   let tmpMax = tmax;
-      //   const keys = ["x", "y", "z"];
-      //   for(let i = 0; i < keys.length; i++) {
-      //     const key = keys[i];
-      //     const res = AABB.getMinMax(this, ray, key);
-      //     tmpMin = Math.max(res.t0, tmpMin);
-      //     tmpMax = Math.min(res.t1, tmpMax);
-      //     if(tmpMax <= tmpMin) {
-      //       return false;
-      //     }
-      //   }
-      //   return true;
-      // }
-
       // optimized
       static hit(box, ray, tmin, tmax) {
         let tmpMin = tmin;
