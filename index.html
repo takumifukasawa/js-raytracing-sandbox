@@ -1,0 +1,2732 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>in-one-weekend</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+    canvas {
+      display: block;
+      position: absolute;
+      top: 0;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      margin: auto;
+    }
+  </style>
+</head>
+<body>
+  <canvas class="js-canvas"></canvas>
+
+  <script id="utilities-script">
+    'use strict';
+
+    class GUIDebugger {
+      static #instance;
+      #rootElement;
+    
+      static get instance() {
+        if (!GUIDebugger.#instance) {
+          throw 'no instantiated';
+        }
+        return GUIDebugger.#instance;
+      }
+    
+      get rootElement() {
+        return this.#rootElement;
+      }
+    
+      constructor(rootElement = null) {
+        if (GUIDebugger.#instance) {
+          return GUIDebugger.#instance;
+        }
+      
+        GUIDebugger.#instance = this;
+      
+        if (rootElement) {
+          this.#rootElement = rootElement;
+        } else {
+          const elem = document.createElement('div');
+          document.body.appendChild(elem);
+          elem.style.position = 'fixed';
+          elem.style.top = '0';
+          elem.style.right = '0';
+          elem.style.color = 'black';
+          elem.style.textAlign = 'right';
+          elem.style.fontSize = '9px';
+          this.#rootElement = elem;
+        }
+      }
+    
+      static addRange({
+        name,
+        min,
+        max,
+        step,
+        initialValue,
+        onInit = () => {},
+        onInput = () => {},
+        onChange = () => {},
+      }) {
+        const instance = GUIDebugger.instance;
+        const currentValue = initialValue ?? min;
+      
+        const elem = document.createElement('div');
+        const label = document.createElement('p');
+        const input = document.createElement('input');
+      
+        label.style.margin = '0.5em 0';
+      
+        input.type = 'range';
+        input.min = min;
+        input.max = max;
+        input.value = currentValue;
+        input.step = step;
+      
+        const updateLabel = (value) => {
+          label.textContent = `[${name}] min: ${min}, max: ${max}, value: ${value}`;
+        };
+      
+        input.addEventListener('input', (e) => {
+          const { value } = e.target;
+          updateLabel(value);
+          onInput(Number(value));
+        });
+        input.addEventListener('change', (e) => {
+          const { value } = e.target;
+          updateLabel(value);
+          onChange(Number(value));
+        });
+      
+        elem.appendChild(label);
+        elem.appendChild(input);
+        instance.rootElement.appendChild(elem);
+
+        onInit(currentValue);
+      
+        updateLabel(currentValue);
+      }
+    }
+
+    class StringUtilities {
+      // ref: https://gist.github.com/6174/6062387
+      static generateRandomString() {
+        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      }
+    }
+
+    class MathUtilities {
+      static degreesToRadians (degree) {
+        return degree * Math.PI / 180;
+      }
+      static getRandomRange(min, max) {
+        return min + Math.random() * (max - min);
+      }
+      static getRandomInt(min, max) {
+        return min + Math.floor(Math.random() % (max - min + 1));
+      }
+      static clamp(value, min, max) {
+        return Math.min(max, Math.max(value, min));
+      }
+      static saturate(value) {
+        MathUtilities.clamp(value, 0, 1);
+      }
+      static lerp(t, a, b) {
+        const value = a + (b - a) * t;
+        return MathUtilities.clamp(value, a, b);
+      }
+      // フレネルの反射係数を計算
+      // fr: フレネルの反射係数
+      // f0: 表面に対して垂直に光が入射したときのフレネル反射係数
+      // フレネルの方程式のshlickの近似式. 偏光されてない場合は良く使われるらしい
+      static shclick(cos, ri) {
+        const f0 = Math.pow(((1.0 - ri) / (1.0 + ri)), 2);
+        const fr = f0 + Math.pow((1.0 - f0) * (1.0 - cos), 5);
+        return fr;
+      }
+    }
+
+    class ArrayUtilities {
+      static shuffle(arr) {
+        for(let i = arr.length - 1; i > 0; i--) {
+          const lastIndex = i;
+          const targetIndex = Math.floor(Math.random() * lastIndex);
+          let tmp = arr[targetIndex];
+          arr[targetIndex] = arr[lastIndex];
+          arr[lastIndex] = tmp;
+        }
+        return arr;
+      }
+      static sortSplice(arr, start, end, comparator) {
+        const pick = arr.splice(start, end - start + 1);
+        pick.sort(comparator);
+        arr.splice(start, 0, ...pick);
+        return arr;
+      }
+    }
+
+    class TextureUtilities {
+      static createWhite1x1() {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 1;
+        canvas.height = 1;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, 1, 1);
+        return canvas;
+      };
+    }
+
+    // 使ってない & たぶんいらない
+    class FunctionWorker extends Worker {
+      constructor(src) {
+        const match = src.toString().match(/^.*\{.*\}$/gi);
+
+        const str = src.toString()
+          .replace(/^.*{.*/, "")
+          .replace(/.*\}$/, "")
+          .replace(/^\n\s*/, "")
+          .replace(/\n$/, "");
+
+        // for debug
+        // console.log(str)
+
+        const blobUrl = window.URL.createObjectURL(new Blob([str]));
+
+        super(blobUrl);
+      }
+    }
+
+    const wait = (msec) => {
+      return new Promise(resolve => {
+        window.setTimeout(() => {
+          resolve();
+        }, msec);
+      });
+    }
+
+    class Vector3 {
+      x;
+      y;
+      z;
+
+      constructor(...args) {
+        this.x = args[0] || 0;
+        this.y = args[1] || 0;
+        this.z = args[2] || 0;
+        return this;
+      }
+
+      toArray() {
+        return [this.x, this.y, this.z];
+      }
+
+      log() {
+        console.log(this.x, this.y, this.z);
+      }
+
+      add(v) {
+        this.x += v.x;
+        this.y += v.y;
+        this.z += v.z;
+        return this;
+      }
+
+      sub(v) {
+        this.x -= v.x;
+        this.y -= v.y;
+        this.z -= v.z;
+        return this;
+      }
+
+      subScalar(s) {
+        this.x -= s;
+        this.y -= s;
+        this.z -= s;
+        return this;
+      }
+
+      mul(v) {
+        this.x *= v.x;
+        this.y *= v.y;
+        this.z *= v.z;
+        return this;
+      }
+
+      mulScalar(s) {
+        this.x *= s;
+        this.y *= s;
+        this.z *= s;
+        return this;
+      }
+
+      div(v) {
+        this.x /= v.x;
+        this.y /= v.y;
+        this.z /= v.z;
+        return this;
+      }
+
+      divScalar(s) {
+        this.x /= s;
+        this.y /= s;
+        this.z /= s;
+        return this;
+      }
+
+      length() {
+        return Math.sqrt(this.lengthSquared());
+      }
+
+      lengthSquared() {
+        return this.x * this.x + this.y * this.y + this.z * this.z;
+      }
+
+      clone() {
+        return new Vector3(this.x, this.y, this.z);
+      }
+
+      copy(v) {
+        this.x = v.x;
+        this.y = v.y;
+        this.z = v.z;
+        return this;
+      }
+
+      normalize() {
+        const len = this.length();
+        this.x /= len;
+        this.y /= len;
+        this.z /= len;
+        return this;
+      }
+
+      negate() {
+        this.x *= -1;
+        this.y *= -1;
+        this.z *= -1;
+        return this;
+      }
+
+      isNearZero() {
+        const eps = 0.00001;
+        return Math.abs(this.x) < eps && Math.abs(this.y) < eps && Math.abs(this.z) < eps;
+      }
+
+      static get zero() {
+        return new Vector3(0, 0, 0);
+      }
+
+      static get one() {
+        return new Vector3(1, 1, 1);
+      }
+
+      static addVectors(...args) {
+        const v = Vector3.clone(args[0]);
+        for(let i = 1; i < args.length; i++) {
+          v.add(args[i]);
+        }
+        return v;
+      }
+
+      static subVectors(...args) {
+        const v = Vector3.clone(args[0]);
+        for(let i = 1; i < args.length; i++) {
+          v.sub(args[i]);
+        }
+        return v;
+      }
+
+      static mulVectors(...args) {
+        const v = Vector3.clone(args[0]);
+        for(let i = 1; i < args.length; i++) {
+          v.mul(args[i]);
+        }
+        return v;
+      }
+
+      static mulVectorScalar(v, s) {
+        return new Vector3(v.x * s, v.y * s, v.z * s);
+      }
+
+      static divVectors(...args) {
+        const v = Vector3.clone(args[0]);
+        for(let i = 1; i < args.length; i++) {
+          v.div(args[i]);
+        }
+        return v;
+      }
+
+      static dotVectors(a, b) {
+        return a.x * b.x + a.y * b.y + a.z * b.z;
+      }
+
+      static crossVectors(a, b) {
+        return new Vector3(
+          a.y * b.z - a.z * b.y,
+          a.z * b.x - a.x * b.z,
+          a.x * b.y - a.y * b.x
+        );
+      }
+
+      // r = v - 2 * (v dot n) * n
+      static reflect(v, n) {
+        const vdotn = Vector3.dotVectors(v, n);
+
+        return Vector3.subVectors(
+          v,
+          n.clone().mulScalar(2 * vdotn)
+        );
+      }
+
+      static refract(v, n, eta) {
+        /**
+         * refs: https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/refract.xhtml
+         * 
+         * const k = 1.0 - eta * eta * (1.0 - dot(N, I) * dot(N, I));
+         * if(k < 0) {
+         *   return Vector3.zero;
+         * } else {
+         *   return eta * I - (eta * dot(N, I) + sqrt(k)) * N;
+         * }
+         */
+
+        const nDotV = Vector3.dotVectors(n, v);
+        const k = 1.0 - eta * eta * (1.0 - nDotV * nDotV);
+        if(k < 0) {
+          return Vector3.zero;
+        } else {
+          const dir = Vector3.subVectors(
+            Vector3.mulVectorScalar(v, eta),
+            Vector3.mulVectorScalar(n, eta * nDotV + Math.sqrt(k))
+          ).normalize();
+          return dir;
+        }
+      }
+
+      static clone(v) {
+        return new Vector3(v.x, v.y, v.z);
+      }
+
+      static fill(s) {
+        return new Vector3(s, s, s);
+      }
+
+      static random(min = 0, max = 1) {
+        return new Vector3(
+          MathUtilities.getRandomRange(min, max),
+          MathUtilities.getRandomRange(min, max),
+          MathUtilities.getRandomRange(min, max)
+        );
+      }
+
+      // ref: https://wasan.hatenablog.com/entry/2014/01/14/060137
+      // 単位球内のランダムなベクトル
+      static randomInUnitSphere() {
+        const r = Math.cbrt(Math.random());
+        const cosTheta = Math.random() * 2 - 1;
+        const sinTheta = Math.sqrt(1 - cosTheta * cosTheta);
+        const phi = Math.random() * 2 * Math.PI;
+        const x = r * sinTheta * Math.cos(phi);
+        const y = r * sinTheta * Math.sin(phi);
+        const z = r * cosTheta;
+        return new Vector3(x, y, z);
+      }
+
+      // 単位球上のランダムなベクトル
+      static randomUnitSphere() {
+        return Vector3.randomInUnitSphere().normalize();
+      }
+
+      // とあるベクトルを基準とした半球内のベクトルを生成
+      static randomInHemisphere(v) {
+        const inUnitSphere = Vector3.randomInUnitSphere();
+        return Vector3.dotVectors(inUnitSphere, v) > 0 ? inUnitSphere : inUnitSphere.negate();
+      }
+
+      // ref: https://rh8liuqy.github.io/Uniform_Disk.html
+      // 円の中のランダムなベクトルを生成
+      static randomInUnitDisk() {
+        const d = Math.sqrt(Math.random()); // length
+        const p = Math.random() * Math.PI * 2; // angle
+        const x = Math.cos(p) * d;
+        const y = Math.sin(p) * d;
+        return new Vector3(x, y, 0);
+      }
+    }
+
+    class AABB {
+      min;
+      max;
+
+      constructor(a, b) {
+        this.min = a;
+        this.max = b;
+      }
+
+      // optimized
+      static hit(box, ray, tmin, tmax) {
+        let tmpMin = tmin;
+        let tmpMax = tmax;
+        const keys = ["x", "y", "z"];
+        for(let i = 0; i < 3; i++) {
+          const key = keys[i];
+          const invD = 1 / ray.direction[key];
+          let t0 = Vector3.subVectors(box.min[key], ray.origin[key]).mulScalar(invD);
+          let t1 = Vector3.subVectors(box.max[key], ray.origin[key]).mulScalar(invD);
+          if(invD < 0) {
+            // swap
+            [t0, t1] = [t1, t0];
+          }
+          tmpMin = t0 > tmpMin ? t0 : tmpMin;
+          tmpMax = t1 < tmpMax ? t1 : tmpMax;
+          if(tmpMax <= tmpMin) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      static surroundingBox(box0, box1) {
+        const small = new Vector3(
+          Math.min(box0.min.x, box1.min.x),
+          Math.min(box0.min.y, box1.min.y),
+          Math.min(box0.min.z, box1.min.z),
+        );
+        const big = new Vector3(
+          Math.max(box0.max.x, box1.max.x),
+          Math.max(box0.max.y, box1.max.y),
+          Math.max(box0.max.z, box1.max.z),
+        );
+        return new AABB(small, big);
+      }
+
+      static boxCompare(a, b, axisKey) {
+        const boxA = BaseHittableGeometry
+          .getGeometryClass(a.type)
+          .boundingBox(a, a.time0, a.time1);
+        const boxB = BaseHittableGeometry
+          .getGeometryClass(b.type)
+          .boundingBox(b, b.time0, b.time1);
+        if(!boxA || !boxB) {
+          console.log("no bounding box in bvh node");
+        }
+        return boxA.min[axisKey] < boxB.min[axisKey];
+      }
+
+      static boxCompareX(a, b) {
+        return AABB.boxCompare(a, b, "x");
+      }
+
+      static boxCompareY(a, b) {
+        return AABB.boxCompare(a, b, "y");
+      }
+
+      static boxCompareZ(a, b) {
+        return AABB.boxCompare(a, b, "z");
+      }
+    }
+
+    class BVHNode {
+      left;
+      right;
+      box;
+
+      static createRoot(objects, time0, time1) {
+        // for debug
+        // console.log("creat BVHNode root", objects.length, time0, time1);
+        return new BVHNode(objects, 0, objects.length, time0, time1);
+      }
+
+      constructor(list, start, end, time0, time1) {
+        const objects = [...list];
+        const axis = MathUtilities.getRandomInt(0, 2);
+
+        let comparator;
+        if(axis === 0) {
+          comparator = AABB.boxCompareX;
+        } else if(axis === 1) {
+          comparator = AABB.boxCompareY;
+        } else {
+          comparator = AABB.boxCompareZ;
+        }
+
+        const objectSpan = end - start;
+
+        let boxLeft, boxRight;
+
+        if(objectSpan == 1) {
+          this.left = objects[start];
+          this.right = objects[start];
+          boxLeft = BaseHittableGeometry
+            .getGeometryClass(this.left.type)
+            .boundingBox(this.left, time0, time1);
+          boxRight = BaseHittableGeometry
+            .getGeometryClass(this.right.type)
+            .boundingBox(this.right, time0, time1);
+ 
+        } else if(objectSpan == 2) {
+          if(comparator(objects[start], objects[start + 1])) {
+            this.left = objects[start];
+            this.right = objects[start + 1];
+          } else {
+            this.left = objects[start + 1];
+            this.right = objects[start];
+          }
+          boxLeft = BaseHittableGeometry
+            .getGeometryClass(this.left.type)
+            .boundingBox(this.left, time0, time1);
+          boxRight = BaseHittableGeometry
+            .getGeometryClass(this.right.type)
+            .boundingBox(this.right, time0, time1);
+
+        } else {
+          ArrayUtilities.sortSplice(objects, start, end, comparator);
+          const mid = Math.floor(start + objectSpan / 2);
+          const slicedLeft = [...objects].splice(start, mid - start + 1);
+          const slicedRight = [...objects].splice(mid, end - mid + 1);
+          this.left = new BVHNode(objects, start, mid, time0, time1);
+          this.right = new BVHNode(objects, mid, end, time0, time1);
+          boxLeft = HittableGeometryList.boundingBox(slicedLeft, time0, time1);
+          boxRight = HittableGeometryList.boundingBox(slicedRight, time0, time1);
+        }
+
+        // for debug
+        // if(!boxLeft || !boxRight) {
+        //   // console.log("no bounding box in bvh node");
+        // }
+        this.box = AABB.surroundingBox(boxLeft, boxRight);
+      }
+
+      static hit(bvhNode, ray, tmin, tmax) {
+        if(bvhNode.box && AABB.hit(bvhNode.box, ray, tmin, tmax)) {
+          const hitLeft = BVHNode.hit(
+            bvhNode.left,
+            ray,
+            tmin,
+            tmax,
+          );
+          const hitRight = BVHNode.hit(
+            bvhNode.right,
+            ray,
+            tmin,
+            !!hitLeft ? hitLeft.distance : tmax,
+          );
+
+          return hitRight || hitLeft || null;
+        }
+ 
+        // console.log("bvhnode hit: ", bvhNode, ray, tmin, tmax)
+        // 末端
+        if(bvhNode.type) {
+          // console.log("last node", bvhNode)
+          const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
+          const box = geometryClass.boundingBox(bvhNode, bvhNode.time0, bvhNode.time1);
+          if(!AABB.hit(box, ray, tmin, tmax)) {
+            return null;
+          }
+          return geometryClass.hit(bvhNode, ray, tmin, tmax);
+        }
+
+        return null;
+      }
+    }
+  </script>
+
+  <script id="webgl-script">
+    'use strict';
+
+    class BaseGLObject {
+      #gpu
+
+      constructor({ gpu }) {
+        this.#gpu = gpu;
+      }
+      getGLContext() {
+        return this.#gpu.gl;
+      }
+      getGLObject() {
+        throw "should implement method";
+      }
+    }
+
+    class GPU {
+      #gl;
+
+      get gl() {
+        return this.#gl;
+      }
+
+      static VertexUsageType = {
+        StaticDraw: "StaticDraw",
+        DynamicDraw: "DynamicDraw"
+      }
+
+      constructor({ canvas }) {
+        const gl = canvas.getContext('webgl2');
+        this.#gl = gl;
+      }
+
+      setSize(width, height) {
+        this.#gl.viewport(0, 0, width, height);
+      }
+    }
+
+    class Shader extends BaseGLObject {
+      #program;
+
+      getGLObject() {
+        return this.#program;
+      }
+
+      constructor({ gpu, vertexShaderText, fragmentShaderText, u }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
+
+        const vertexShader = gl.createShader(gl.VERTEX_SHADER);
+        gl.shaderSource(vertexShader, vertexShaderText);
+        gl.compileShader(vertexShader);
+        const vertexShaderInfoLog = gl.getShaderInfoLog(vertexShader);
+        if(vertexShaderInfoLog.length > 0) {
+          throw vertexShaderInfoLog;
+        }
+
+        const fragmentShader = gl.createShader(gl.FRAGMENT_SHADER);
+        gl.shaderSource(fragmentShader, fragmentShaderText);
+        gl.compileShader(fragmentShader);
+        const fragmentShaderInfoLog = gl.getShaderInfoLog(fragmentShader);
+        if(fragmentShaderInfoLog.length > 0) {
+          throw fragmentShaderInfoLog;
+        }
+
+        const program = gl.createProgram()
+        gl.attachShader(program, vertexShader);
+        gl.attachShader(program, fragmentShader);
+        gl.linkProgram(program)
+        const programInfoLog = gl.getProgramInfoLog(program);
+        if(programInfoLog.length > 0) {
+          throw programInfoLog;
+        }
+
+        this.#program = program;
+      }
+    }
+
+    class VertexBufferObject extends BaseGLObject {
+      #vbo;
+      #usage;
+      #name;
+
+      getGLObject() {
+        return this.#vbo;
+      }
+
+      get name() {
+        this.#name;
+      }
+
+      constructor({ gpu, name, location, data, stride, usage }) {
+        super({ gpu });
+        const gl = this.getGLContext();
+        this.#vbo = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
+
+        this.#usage = usage;
+        this.#name = name;
+
+        let vertexUsage = null;
+        switch(usage) {
+          case GPU.VertexUsageType.StaticDraw:
+            vertexUsage = gl.STATIC_DRAW;
+            break;
+          case GPU.VertexUsageType.DynamicDraw:
+            vertexUsage = gl.DYNAMIC_DRAW;
+            break;
+          default:
+            throw "invalid vertex usage type for set buffer data.";
+        }
+
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), vertexUsage);
+        gl.enableVertexAttribArray(location);
+        gl.vertexAttribPointer(location, stride, gl.FLOAT, false, 0, 0);
+
+        // NOTE: 親側で処理をするべきかも
+        this.unbind();
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindBuffer(gl.ARRAY_BUFFER, null);
+      }
+
+      update(data) {
+        if(this.#usage != GPU.VertexUsageType.DynamicDraw) {
+          console.error("invalid vertex usage type for dynamic update.");
+          return;
+        }
+        const gl = this.getGLContext();
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.#vbo);
+        gl.bufferSubData(gl.ARRAY_BUFFER, 0, new Float32Array(data));
+        this.unbind();
+      }
+    }
+
+    class VertexArrayObject extends BaseGLObject {
+      #vao;
+      #vboList = [];
+
+      getGLObject() {
+        return this.#vao;
+      }
+
+      constructor({ gpu, attributes }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
+        this.#vao = gl.createVertexArray();
+
+        this.bind();
+
+        for(let i = 0; i < attributes.length; i++) {
+          const attribute = attributes[i];
+
+          const { name, stride, data, usage } = attribute;
+          const location = attribute.location || i;
+
+          const vbo = new VertexBufferObject({
+            gpu,
+            name,
+            data,
+            location,
+            stride,
+            usage: usage || GPU.VertexUsageType.StaticDraw
+          });
+
+          this.#vboList[i] = {
+            name, vbo
+          }
+        }
+
+        // NOTE: indexを使う場合もあるのでここでunbindはしない
+      }
+
+      bind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(this.#vao);
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(null);
+      }
+
+      #findVertexBufferObject(name) {
+        for(let i = 0; i < this.#vboList.length; i++) {
+          if(name === this.#vboList[i].name) {
+            return this.#vboList[i];
+          }
+        }
+        return null;
+      }
+
+      updateVertexBufferObject(name, data) {
+        const result = this.#findVertexBufferObject(name);
+        if(!result) {
+          return;
+        }
+        result.vbo.update(data);
+      }
+    }
+
+    class IndexBufferObject extends BaseGLObject {
+      #indexBufferObject;
+      #indices;
+
+      constructor({ gpu, indices }) {
+        super({ gpu });
+
+        this.#indices = indices;
+
+        const gl = this.getGLContext();
+        this.#indexBufferObject = gl.createBuffer();
+
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, this.#indexBufferObject);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(indices), gl.STATIC_DRAW);
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+        gl.bindVertexArray(null);
+      }
+    }
+
+    class GLMaterial {
+      #shader;
+      #uniforms;
+      #primitiveType;
+
+      static PrimitiveType = {
+        Points: "Points",
+        Triangles: "Triangles",
+      };
+      
+      static UniformType = {
+        Texture2D: "Texture2D"
+      };
+
+
+      get primitiveType() {
+        return this.#primitiveType;
+      }
+
+      get shader() {
+        return this.#shader;
+      }
+
+      get uniforms() {
+        return this.#uniforms;
+      }
+
+      constructor({ gpu, vertexShader, fragmentShader, uniforms, primitiveType }) {
+        this.#shader = new Shader({ gpu, vertexShaderText: vertexShader, fragmentShaderText: fragmentShader });
+        this.#uniforms = uniforms;
+        this.#primitiveType = primitiveType;
+      }
+    }
+
+    class GLGeometry {
+      #vertexArrayObject;
+      #indexBufferObject;
+      #attributes;
+      #indices;
+
+      get vertexArrayObject() {
+        return this.#vertexArrayObject;
+      }
+
+      get indices() {
+        return this.#indices;
+      }
+
+      get attributes() {
+        return this.#attributes;
+      }
+
+      constructor({ gpu, attributes, indices }) {
+        const gl = gpu.gl;
+
+        this.#attributes = attributes;
+
+        this.#vertexArrayObject = new VertexArrayObject({ gpu, attributes });
+
+        if(indices) {
+          this.#indices = indices;
+          this.#indexBufferObject = new IndexBufferObject({ gpu, indices });
+        }
+
+        // unbinds
+        this.#vertexArrayObject.unbind();
+        if(this.#indexBufferObject) {
+          this.#indexBufferObject.unbind();
+        }
+      }
+
+      get vertexCount() {
+        const attribute = this.#attributes[0];
+        return attribute.data.length / attribute.stride;
+      }
+
+      updateAttribute(name, data) {
+        // NOTE: 関数を呼ぶだけの関数になっているので変えたい
+        this.#vertexArrayObject.updateVertexBufferObject(name, data);
+      }
+    }
+
+    class Texture extends BaseGLObject {
+      #texture;
+      #img;
+
+      static WrapType = {
+        ClampToEdge: "ClampToEdge",
+        Repeat: "Repeat"
+      }
+
+      getGLObject() {
+        return this.#texture;
+      }
+
+      constructor({
+        gpu,
+        img,
+        width,
+        height,
+        mipmap = true,
+        wrapS = Texture.WrapType.ClampToEdge,
+        wrapT = Texture.WrapType.ClampToEdge,
+        flipY = true
+      }) {
+        super({ gpu });
+
+        this.#img = img || null;
+
+        const gl = this.getGLContext();
+
+        this.#texture = gl.createTexture();
+
+        gl.bindTexture(gl.TEXTURE_2D, this.#texture);
+
+        if(this.#img) {
+          gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, !!flipY);
+        }
+
+        if(width && height) {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+        } else {
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+        }
+
+        if(mipmap) {
+          gl.generateMipmap(gl.TEXTURE_2D);
+        }
+
+        // TODO: specify filter
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+        switch(wrapS) {
+          case Texture.WrapType.Repeat:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+            break;
+          case Texture.WrapType.ClampToEdge:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+            break;
+        }
+
+        switch(wrapT) {
+          case Texture.WrapType.Repeat:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+            break;
+          case Texture.WrapType.ClampToEdge:
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+            break;
+        }
+
+        // TODO: unbind
+      }
+
+      setSize(width, height) {
+        const gl = this.getGLContext();
+        gl.bindTexture(gl.TEXTURE_2D, this.#texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, width, height, 0, gl.RGBA, gl.UNSIGNED_BYTE, this.#img);
+      }
+    }
+
+    class Renderbuffer extends BaseGLObject {
+      #renderbuffer;
+      #type;
+
+      static Type = {
+        Depth: "Depth",
+      };
+
+      getGLObject() {
+        return this.#renderbuffer;
+      }      
+
+      constructor({ gpu, type, width, height }) {
+        super({ gpu });
+
+        this.#type = type;
+
+        const gl = this.getGLContext();
+
+        this.#renderbuffer = gl.createRenderbuffer();
+        
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+
+        if(this.#type === Renderbuffer.Type.Depth) {
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            gl.DEPTH_COMPONENT16,
+            width,
+            height
+          );
+        }
+      }
+
+      setSize(width, height) {
+        const gl = this.getGLContext();
+
+        gl.bindRenderbuffer(gl.RENDERBUFFER, this.#renderbuffer);
+
+        if(this.#type === Renderbuffer.Type.Depth) {
+          gl.renderbufferStorage(
+            gl.RENDERBUFFER,
+            gl.DEPTH_COMPONENT16,
+            width,
+            height
+          );
+        }
+      }
+
+      bind() {
+        const gl = this.getGLContext();
+
+        gl.framebufferRenderbuffer(
+          gl.FRAMEBUFFER,
+          gl.DEPTH_ATTACHMENT,
+          gl.RENDERBUFFER,
+          this.getGLObject()
+        );
+      }
+
+      unbind() {
+        const gl = this.getGLContext();
+
+        gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+      }
+    }
+
+    class Framebuffer extends BaseGLObject {
+      #framebuffer;
+
+      getGLObject() {
+        return this.#framebuffer;
+      }
+
+      constructor({ gpu }) {
+        super({ gpu });
+
+        const gl = this.getGLContext();
+
+        this.#framebuffer = gl.createFramebuffer();
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.#framebuffer);
+      }
+    }
+
+    class GLRenderTarget {
+      #texture;
+      #framebuffer;
+      #depthRenderbuffer;
+
+      get texture() {
+        return this.#texture;
+      }
+
+      get framebuffer() {
+        return this.#framebuffer;
+      }
+
+      get depthRenderbuffer() {
+        return this.#depthRenderbuffer;
+      }
+
+      constructor({
+        gpu,
+        width = 1,
+        height = 1,
+        useDepth = true
+      }) {
+        const gl = gpu.gl;
+
+        this.#framebuffer = new Framebuffer({ gpu });
+
+        if(useDepth) {
+          this.#depthRenderbuffer = new Renderbuffer({
+            gpu,
+            width,
+            height,
+            type: Renderbuffer.Type.Depth
+          });
+        }
+
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.bind();
+        }
+
+        this.#texture = new Texture({
+          gpu,
+          width: 1,
+          height: 1,
+          mipmap: false,
+        });
+
+        gl.framebufferTexture2D(
+          gl.FRAMEBUFFER,
+          gl.COLOR_ATTACHMENT0,
+          gl.TEXTURE_2D,
+          this.#texture.getGLObject(),
+          0
+        );
+
+        gl.bindTexture(gl.TEXTURE_2D, null);
+
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.unbind();
+        }
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
+      setSize(width, height) {
+        this.#texture.setSize(width, height);
+        if(this.#depthRenderbuffer) {
+          this.#depthRenderbuffer.setSize(width, height);
+        }
+      }
+    }
+
+    class GLMesh {
+      #material;
+      #geometry;
+
+      get material() {
+        return this.#material;
+      }
+
+      get geometry() {
+        return this.#geometry;
+      }
+
+      constructor({ material, geometry }) {
+        this.#material = material;
+        this.#geometry = geometry;
+      }
+    }
+
+    // TODO: gl系の処理をgpuに移してもいいかもしれない
+    class GLRenderer {
+      #gpu; 
+      #renderTarget;
+      #dummyTexture;
+
+      constructor({ gpu }) {
+        this.#gpu = gpu;
+        this.#dummyTexture = TextureUtilities.createWhite1x1();
+      }
+
+      setSize(width, height) {
+        const gl = this.#gpu.gl;
+        gl.viewport(0, 0, width, height);
+      }
+
+      setRenderTarget(renderTarget) {
+        const gl = this.#gpu.gl;
+        this.#renderTarget = renderTarget;
+        if(this.#renderTarget) {
+          gl.bindFramebuffer(gl.FRAMEBUFFER, this.#renderTarget.framebuffer.getGLObject());
+        }
+      }
+
+      unsetRenderTarget() {
+        const gl = this.#gpu.gl;
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+      }
+
+      clear(r = 0, g = 0, b = 0, a = 1) {
+        const gl = this.#gpu.gl;
+        gl.clearColor(r, g, b, a);
+        gl.clearDepth(1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+      }
+
+      render({ meshes }) {
+        const gl = this.#gpu.gl;
+        for(let i = 0; i < meshes.length; i++)  {
+          const mesh = meshes[i];
+          const { material, geometry } = mesh;
+          const { uniforms } = material;
+          const program = material.shader.getGLObject();
+          const vertexArrayObject = geometry.vertexArrayObject.getGLObject();
+          const indices = geometry.indices;
+          gl.useProgram(program);
+          gl.bindVertexArray(vertexArrayObject);
+
+          // init textures
+          let activeTextureIndex = 0;
+          // NOTE:
+          // - glから最大テクスチャ割当可能数を取得して動的に設定してもよい
+          // - 連番なので列挙しなくてもよい
+          const textureUnits = [
+            gl.TEXTURE0,
+            gl.TEXTURE1,
+            gl.TEXTURE2,
+            gl.TEXTURE3,
+            gl.TEXTURE4,
+            gl.TEXTURE5,
+            gl.TEXTURE6,
+            gl.TEXTURE7,
+          ];
+
+          const uniformsKeys = Object.keys(uniforms);
+          for(let i = 0; i < uniformsKeys.length; i++) {
+            const name = uniformsKeys[i];
+            const { type, data } = uniforms[name];
+            const location = gl.getUniformLocation(program, name);
+            switch(type) {
+              case GLMaterial.UniformType.Texture2D:
+                const texture = data || this.dummyTexture;
+                gl.activeTexture(textureUnits[activeTextureIndex]);
+                gl.bindTexture(
+                  gl.TEXTURE_2D,
+                  texture.getGLObject()
+                );
+                gl.uniform1i(location, activeTextureIndex);
+                activeTextureIndex++;
+                break;
+              default:
+                throw "invalid uniform type";
+            }
+          }
+          
+          let primitiveType = null;
+          switch(mesh.material.primitiveType) {
+            case GLMaterial.PrimitiveType.Points:
+              primitiveType = gl.POINTS;
+              break;
+            case GLMaterial.PrimitiveType.Triangles:
+              primitiveType = gl.TRIANGLES;
+              break;
+          }
+
+          if(primitiveType === null) {
+            console.error("invalid primitive type.");
+          }
+
+          if(indices) {
+            gl.drawElements(primitiveType, indices.length, gl.UNSIGNED_SHORT, 0);
+          } else {
+            // TODO: primitive type に応じて vertexcount 調整
+            gl.drawArrays(primitiveType, 0, geometry.vertexCount);
+          }
+        }
+        gl.flush();
+      }
+    }
+  </script>
+
+  <script id="raytracing-script">
+    'use strict';
+
+    class Ray {
+      #origin;
+      #direction;
+      #time;
+
+      get origin() {
+        return this.#origin;
+      }
+
+      get direction() {
+        return this.#direction;
+      }
+
+      get time() {
+        return this.#time;
+      }
+
+      constructor(origin, direction, time = 0) {
+        this.#origin = origin;
+        this.#direction = direction;
+        this.#time = time;
+      }
+
+      at(t) {
+        return Vector3.addVectors(
+          this.#origin,
+          Vector3.mulVectorScalar(this.#direction, t)
+        );
+      }
+    }
+
+    class Camera {
+      position;
+      lookAt;
+      aspect;
+      fov;
+      up;
+      focusDist;
+      aperture;
+      direction;
+      horizontal;
+      vertical;
+      lensRadius;
+      u;
+      v;
+      w;
+      lowerLeftCorner;
+      time0;
+      time1;
+
+      constructor(
+        position,
+        lookAt,
+        up,
+        fov, // 画角: degree
+        aspect,
+        aperture, // 絞り: 0だと全てにピント合ってる状態
+        focusDist, // 焦点距離
+        time0 = 0,
+        time1 = 0
+      ) {
+        this.position = position;
+        this.lookAt = lookAt;
+        this.up = up;
+        this.fov = fov;
+        this.aspect = aspect;
+        this.aperture = aperture;
+        this.focusDist = focusDist;
+        this.time0 = time0;
+        this.time1 = time1;
+
+        // manually once update
+        this.updateCameraVectors();
+      }
+
+      updateCameraVectors() {
+        /*
+         *     /
+         *    /
+         *   /|
+         *  / | h
+         * /  |
+         * -------- z axis
+         * \  theta / 2
+         *  \ 
+         *   \
+         *    \ 
+         *     \ 
+         */
+        const theta = MathUtilities.degreesToRadians(this.fov);
+        const h = Math.tan(theta / 2);
+        const height = 2.0 * h;
+        const width = height * this.aspect;
+
+        this.w = Vector3.subVectors(this.position, this.lookAt).normalize();
+        this.u = Vector3.crossVectors(this.up, this.w).normalize();
+        this.v = Vector3.crossVectors(this.w, this.u).normalize();
+ 
+        this.horizontal = Vector3.mulVectorScalar(this.u, width).mulScalar(this.focusDist);
+        this.vertical = Vector3.mulVectorScalar(this.v, height).mulScalar(this.focusDist);
+        // wは注視点からみたカメラの方向なので反転
+        this.direction = this.w.negate();
+      }
+
+      // worker内で呼ぶのでstaticに
+      static getRay(camera, x, y) {
+        const lensRadius = camera.aperture / 2;
+        const rd = Vector3.randomInUnitDisk().mulScalar(lensRadius);
+
+        const offset = Vector3.addVectors(
+          Vector3.mulVectorScalar(camera.horizontal, rd.x),
+          Vector3.mulVectorScalar(camera.vertical, rd.y)
+        );
+
+        const from = Vector3.addVectors(camera.position, offset);
+
+        const dir = Vector3
+          .addVectors(
+            Vector3.mulVectorScalar(camera.horizontal, x),
+            Vector3.mulVectorScalar(camera.vertical, y),
+            Vector3.mulVectorScalar(camera.direction, camera.focusDist),
+          )
+          .sub(offset)
+          // NOTE: normalizeしておいた方がいい気がする
+          // .normalize()
+
+        const ray = new Ray(
+          from,
+          dir,
+          MathUtilities.getRandomRange(camera.time0, camera.time1)
+        );
+ 
+        return ray;
+      }
+    }
+
+    class RaytraceRenderer {
+      #renderer;
+      #renderTarget;
+      #pointMesh;
+      #pointGeometry;
+      #fullQuadMesh;
+      #workers;
+      #workerScriptUrl;
+      #beginDrawPointIndex;
+
+      #camera;
+      #updatePixelIndexes;
+      #threadNum;
+      #width;
+      #height;
+      #sampleCountPerPixel;
+      #maxRayIterationCount;
+      #drawPointNum;
+
+      constructor({ gpu }) {
+        this.#workers = [];
+
+        const utilitiesScript = document.querySelector("#utilities-script").textContent;
+        const workerScript = document.querySelector("#worker-script").textContent;
+        const webglScript = document.querySelector("#webgl-script").textContent;
+        const raytracingScript = document.querySelector("#raytracing-script").textContent;
+
+        const scriptBlob = new Blob([
+          workerScript,
+          utilitiesScript,
+          webglScript,
+          raytracingScript,
+        ]);
+        this.#workerScriptUrl = window.URL.createObjectURL(scriptBlob);
+
+        this.#renderer = new GLRenderer({ gpu });
+        this.#renderTarget = new GLRenderTarget({ gpu });
+
+        const fullQuadVertexShaderText = `#version 300 es
+          layout(location = 0) in vec3 aPosition;
+          layout(location = 1) in vec2 aUv;
+          out vec2 vUv;
+          void main() {
+            vUv = aUv;
+            gl_Position = vec4(aPosition, 1.);
+          }
+        `;
+
+        const fullQuadFragmentShaderText = `#version 300 es
+          precision mediump float;
+          in vec2 vUv;
+          out vec4 outColor;
+          uniform sampler2D uSceneTexture;
+          void main() {
+            vec2 uv = vUv.xy;
+            vec4 sceneColor = texture(uSceneTexture, uv);
+            outColor = sceneColor;
+            // outColor = vec4(vUv, 0., 1.);
+          }
+        `;
+
+        const fullQuadMaterial = new GLMaterial({
+          gpu,
+          vertexShader: fullQuadVertexShaderText,
+          fragmentShader: fullQuadFragmentShaderText,
+          uniforms: {
+            uSceneTexture: {
+              type: GLMaterial.UniformType.Texture2D,
+              data: this.#renderTarget.texture
+            }
+          },
+          primitiveType: GLMaterial.PrimitiveType.Triangles
+        });
+
+        // 3 ----- 2
+        // |     / |
+        // |    /  |
+        // |   /   |
+        // |  /    |
+        // | /     |
+        // 0 ----- 1
+        const fullQuadGeometry = new GLGeometry({
+          gpu,
+          attributes: [
+            {
+              name: 'position',
+              data: [
+                -1.0, -1.0, 0.0,                
+                1.0, -1.0, 0.0,                
+                1.0, 1.0, 0.0,                
+                -1.0, 1.0, 0.0,                
+              ],
+              stride: 3
+            },
+            {
+              name: 'uv',
+              data: [
+                0.0, 0.0,
+                1.0, 0.0,
+                1.0, 1.0,
+                0.0, 1.0,
+              ],
+              stride: 2
+            },
+          ],
+          indices: [
+            0, 1, 2,
+            2, 3, 0
+          ]
+        });
+
+        this.#fullQuadMesh = new GLMesh({
+          material: fullQuadMaterial,
+          geometry: fullQuadGeometry,
+        });
+      }
+
+      initPointGeometry(pointNum) {
+        const pointVertexShaderText = `#version 300 es
+          layout(location = 0) in vec3 aPosition;
+          layout(location = 1) in vec3 aColor;
+          out vec3 vColor;
+          void main() {
+            vColor = aColor;
+            gl_Position = vec4(aPosition, 1);
+            gl_PointSize = 1.0;
+          }
+        `;
+
+        const pointFragmentShaderText = `#version 300 es
+          precision mediump float;
+          in vec3 vColor;
+          out vec4 outColor;
+          void main() {
+            outColor = vec4(vColor, 1);
+          }
+        `;
+
+        const pointMaterial = new GLMaterial({
+          gpu,
+          vertexShader: pointVertexShaderText,
+          fragmentShader: pointFragmentShaderText,
+          uniforms: {},
+          primitiveType: GLMaterial.PrimitiveType.Points });
+
+        this.#pointGeometry = new GLGeometry({
+          gpu,
+          attributes: [
+            {
+              name: 'position',
+              data: ([...new Array(pointNum)].map((_, i) => [
+                0, 0, 0
+              ])).flat(),
+              stride: 3,
+              usage: GPU.VertexUsageType.DynamicDraw
+            },
+            {
+              name: 'color',
+              data: ([...new Array(pointNum)].map((_, i) => [
+                0, 0, 0
+              ])).flat(),
+              stride: 3,
+              usage: GPU.VertexUsageType.DynamicDraw
+            }
+          ]
+        });
+
+        this.#pointMesh = new GLMesh({
+          material: pointMaterial,
+          geometry: this.#pointGeometry,
+        });
+      }
+
+      init({
+        width,
+        height,
+        updatePixelIndexes,
+        threadNum,
+        drawPointNum,
+        sampleCountPerPixel,
+        maxRayIterationCount,
+      }) {
+        this.initPointGeometry(drawPointNum);
+        this.#updatePixelIndexes = updatePixelIndexes;
+        this.#threadNum = threadNum;
+        this.#width = width;
+        this.#height = height;
+        this.#sampleCountPerPixel = sampleCountPerPixel;
+        this.#maxRayIterationCount = maxRayIterationCount;
+        this.#drawPointNum = drawPointNum;
+      }
+
+      updateCamera(camera = null) {
+        if(camera) {
+          this.#camera = camera;
+        }
+        this.#beginDrawPointIndex = 0;
+      }
+
+      start({ scene, camera }) {
+        if(camera) {
+          this.#camera = camera;
+        }
+
+        if(!this.#camera) {
+          throw "no camera";
+        }
+
+        this.#beginDrawPointIndex = 0;
+
+        const tryExecWorker = async (worker) => {
+          const pixelIndexes = this.#updatePixelIndexes.slice(
+            this.#beginDrawPointIndex,
+            this.#beginDrawPointIndex + this.#drawPointNum
+          );
+
+          const args = {
+            scene,
+            camera: this.#camera,
+            width: this.#width,
+            height: this.#height,
+            sampleCountPerPixel: this.#sampleCountPerPixel,
+            maxRayIterationCount: this.#maxRayIterationCount,
+            updatePixelIndexes: pixelIndexes
+          };
+
+          if(pixelIndexes.length > 0) {
+            worker.postMessage([args]);
+          } else {
+            await wait(1000 / 60);
+            await tryExecWorker(worker);
+          }
+        }
+
+        for(let i = 0; i < this.#threadNum; i++) {
+          const worker = new Worker(this.#workerScriptUrl);
+          this.#workers.push(worker);
+
+          worker.onmessage = async (e) => {
+            const [{ positions, colors }] = e.data;
+            this.#pointGeometry.updateAttribute('position', positions.flat());
+            this.#pointGeometry.updateAttribute('color', colors.flat());
+
+            this.updateRenderTarget();
+
+            this.#beginDrawPointIndex += positions.length;
+            tryExecWorker(worker)
+          };
+
+          worker.onerror = (e) => {
+            console.error(e);
+          }
+
+          tryExecWorker(worker);
+        }
+      }
+
+      setSize(width, height) {
+        this.#renderer.setSize(width, height);
+        this.#renderTarget.setSize(width, height);
+      }
+
+      updateRenderTarget() {
+        this.#renderer.setRenderTarget(this.#renderTarget);
+        this.#renderer.render({ meshes: [ this.#pointMesh ]});
+        this.#renderer.unsetRenderTarget();
+      }
+
+      render() {
+        this.#renderer.clear();
+        this.#renderer.render({ meshes: [ this.#fullQuadMesh ]});
+      }
+
+      stop() {
+        for(let i = 0; i < this.#workers.length; i++) {
+          this.#workers[i].terminate();
+        }
+        this.#workers = [];
+      }
+    }
+
+    class HitInfo {
+        distance;
+        position;
+        normal;
+        material;
+        isFrontFace;
+
+        constructor({ distance, position, normal, material, isFrontFace }) {
+          this.distance = distance;
+          this.position = position;
+          this.normal = normal;
+          this.material = material;
+          this.isFrontFace = isFrontFace;
+        }
+    }
+
+    class BaseHittableGeometry {
+      type;
+      id;
+
+      static GeometryType = {
+        Sphere: "Sphere",
+        MovingSphere: "MovingSphere",
+      }
+
+      constructor(type) {
+        if(!type) {
+          throw "should specify type";
+        }
+        this.type = type;
+        this.id = StringUtilities.generateRandomString();
+      }
+
+      hit(ray, tMin, tMax) {
+        throw 'implement method.'
+      }
+
+      static getGeometryClass(type) {
+        switch(type) {
+          case BaseHittableGeometry.GeometryType.Sphere:
+            return HittableSphereGeometry;
+          case BaseHittableGeometry.GeometryType.MovingSphere:
+            return HittableMovingSphereGeometry;
+          default:
+            throw "invalid geometry type";
+        }
+      }
+
+      static isFrontFace(ray, normal) {
+        return Vector3.dotVectors(ray.direction, normal) < 0;
+      }
+
+      static setFaceNormal(ray, normal) {
+        const frontFace = BaseHittableGeometry.isFrontFace(ray, normal);
+        return frontFace ? normal : normal.clone().mulScalar(-1);
+      }
+    }
+
+    class HittableSphereGeometry extends BaseHittableGeometry {
+      center;
+      radius;
+      material;
+      
+      constructor(center, radius, material) {
+        super(BaseHittableGeometry.GeometryType.Sphere);
+        this.center = center;
+        this.radius = radius;
+        this.material = material;
+      }
+
+      static hit(sphere, ray, tMin, tMax) {
+        /*
+         * 2次方程式のxの解
+         * x = (-b (+-) sqrt (b^2 - 4ac)) / 2a
+         *
+         * 球の公式
+         * x^2 + y^2 + z^2 = r^2;
+         *
+         * // 中心位置をcx,cy,czとすると
+         * (x - cx)^2 + (y - cy)^2 + (z - cz)^2 = r^2
+         *
+         * // 位置をx,y,zとすると
+         * (px - cx)^2 + (pz - cy)^2 + (pz - cz)^2 = r^2
+         * a: (p - c)^2 = r^2
+         *
+         * // rayの方程式
+         * p(t) = o + td;
+         *
+         * // a に代入
+         * (p(t) - c)^2 = r^2
+         * (o + td - c)^2 = r^2
+         *
+         * oc = o - cとすると
+         * (oc + td)^2 = r^2
+         * (oc + td)^2 - r^2 = 0
+         *
+         * tについて展開
+         * (d*d)t^2 + 2(d + oc)t + (oc)^2 - r^2 = 0
+         *
+         * ax^2 + bx + c = 0 の二次方程式に判別式Dを当てはめると、
+         *
+         * D = b^2 - 4ac
+         * a = (d dot d)
+         * b = 2 * (d dot oc)
+         * c = (oc dot oc) - r^2
+         * 
+         * ---
+         * 
+         * b = 2h とすると、
+         * x = (-2h (+-) sqrt ((2h)^2 - 4ac)) / 2a
+         * 2を外に出す
+         * x = (-2h (+-) 2 * sqrt (h^2 - ac)) / 2a
+         * 2で全部割れるので
+         * x = (-h (+-) sqrt (h^2 - ac)) / a
+         */
+
+        const oc = Vector3.subVectors(ray.origin, sphere.center);
+        const a = Vector3.dotVectors(ray.direction, ray.direction);
+        // b = 2h より、 h = b / 2
+        const halfB = Vector3.dotVectors(oc, ray.direction);
+        const c = Vector3.dotVectors(oc, oc) - sphere.radius * sphere.radius;
+        // 判別式
+        const discriminant = halfB * halfB - a * c;
+
+        if(discriminant < 0) {
+          return null;
+        }
+
+        const sqrtD = Math.sqrt(discriminant);
+
+        // 二次方程式の解がrayの長さの最小以下・最大以上だったらヒットしていないとみなす
+        let root = (-halfB - sqrtD) / a;
+        if(root < tMin || tMax < root) {
+          root = (-halfB + sqrtD) / a;
+          if(root < tMin || tMax < root) {
+            return null;
+          }
+        }
+
+        const distance = root;
+        const position = ray.at(distance);
+
+        // normalizeはなくてよいけど一応
+        let normal = Vector3
+          .subVectors(position, sphere.center)
+          .divScalar(sphere.radius)
+          .normalize();
+        const isFrontFace = BaseHittableGeometry.isFrontFace(ray, normal);
+        normal = BaseHittableGeometry.setFaceNormal(ray, normal);
+
+        return new HitInfo({
+          distance,
+          position,
+          normal,
+          material: sphere.material,
+          isFrontFace
+        });
+      }
+
+      static boundingBox(sphere) {
+        return new AABB(
+          Vector3.subVectors(sphere.center, Vector3.fill(sphere.radius)),
+          Vector3.addVectors(sphere.center, Vector3.fill(sphere.radius)),
+        );
+      }
+    }
+
+    class HittableMovingSphereGeometry extends BaseHittableGeometry {
+      center0;
+      center1;
+      time0;
+      time1;
+      radius;
+      material;
+      
+      constructor(center0, center1, time0, time1, radius, material) {
+        super(BaseHittableGeometry.GeometryType.MovingSphere);
+        this.center0 = center0;
+        this.center1 = center1;
+        this.time0 = time0;
+        this.time1 = time1;
+        this.radius = radius;
+        this.material = material;
+      }
+
+      static center(sphere, time) {
+        const center = Vector3.addVectors(
+          sphere.center0,
+          Vector3
+            .subVectors(sphere.center1, sphere.center0)
+            .mulScalar((time - sphere.time0) / (sphere.time1 - sphere.time0))
+        )
+        // for debug
+        // console.log(sphere.center0, sphere.center1, sphere.time0, sphere.time1, time, center);
+        return center;
+      }
+
+      static hit(sphere, ray, tMin, tMax) {
+        const center = HittableMovingSphereGeometry.center(sphere, ray.time);
+        const oc = Vector3.subVectors(ray.origin, center);
+        const a = Vector3.dotVectors(ray.direction, ray.direction);
+        // b = 2h より、 h = b / 2
+        const halfB = Vector3.dotVectors(oc, ray.direction);
+        const c = Vector3.dotVectors(oc, oc) - sphere.radius * sphere.radius;
+        // 判別式
+        const discriminant = halfB * halfB - a * c;
+
+        if(discriminant < 0) {
+          return null;
+        }
+
+        const sqrtD = Math.sqrt(discriminant);
+
+        // 二次方程式の解がrayの長さの最小以下・最大以上だったらヒットしていないとみなす
+        let root = (-halfB - sqrtD) / a;
+        if(root < tMin || tMax < root) {
+          root = (-halfB + sqrtD) / a;
+          if(root < tMin || tMax < root) {
+            return null;
+          }
+        }
+
+        const distance = root;
+        const position = ray.at(distance);
+
+        // normalizeはなくてよいけど一応
+        let normal = Vector3
+          .subVectors(position, center)
+          .divScalar(sphere.radius)
+          .normalize();
+        const isFrontFace = BaseHittableGeometry.isFrontFace(ray, normal);
+        normal = BaseHittableGeometry.setFaceNormal(ray, normal);
+
+        return new HitInfo({
+          distance,
+          position,
+          normal,
+          material: sphere.material,
+          isFrontFace
+        });
+      }
+
+      // static boundingBox(sphere, t0, t1) {
+      static boundingBox(sphere) {
+        const center0 = HittableMovingSphereGeometry.center(sphere, sphere.time0);
+        const box0 = new AABB(
+          Vector3.subVectors(center0, Vector3.fill(sphere.radius)),
+          Vector3.addVectors(center0, Vector3.fill(sphere.radius)),
+        );
+
+        const center1 = HittableMovingSphereGeometry.center(sphere, sphere.time1);
+        const box1 = new AABB(
+          Vector3.subVectors(center1, Vector3.fill(sphere.radius)),
+          Vector3.addVectors(center1, Vector3.fill(sphere.radius)),
+        );
+
+        return AABB.surroundingBox(box0, box1);
+      }
+    }
+
+
+
+    // 本当はBaseHittableGeometryを継承させていた方がいい
+    class HittableGeometryList {
+      hitObjects;
+
+      constructor(hitObjects = []) {
+        this.hitObjects = hitObjects;
+      }
+
+      add(hittableObject) {
+        this.hitObjects.push(hittableObject);
+      }
+
+      static hit(hitObjects, ray, tMin, tMax) {
+        let isHit = false;
+        let hitInfo = null;
+        // ヒットした距離を更新してヒット判定の最大長に渡すことで重なり順を解決
+        let hitDistance = tMax;
+
+        for(let i = 0; i < hitObjects.length; i++) {
+          const hitObject = hitObjects[i];
+
+          const currentHitInfo =
+            BaseHittableGeometry
+              .getGeometryClass(hitObject.type)
+              .hit(
+                hitObject,
+                ray,
+                tMin,
+                hitDistance
+              );
+          if(currentHitInfo) {
+            isHit = true;
+            hitInfo = currentHitInfo;
+            hitDistance = hitInfo.distance;
+          }
+        }
+
+        return hitInfo;
+      }
+
+      static boundingBox(hitObjects, t0, t1) {
+        if(hitObjects.length < 1) {
+          return null;
+        }
+
+        let tmpBox;
+        let outputBox;
+        let firstBox = true;
+        
+        for(let i = 0; i < hitObjects.length; i++) {
+          // tmpBox = hitObjects[i].boundingBox(t0, t1);
+          tmpBox = BaseHittableGeometry
+            .getGeometryClass(hitObjects[i].type)
+            .boundingBox(hitObjects[i], t0, t1);
+ 
+          if(!tmpBox) {
+            return false;
+          }
+          outputBox = firstBox ? tmpBox : AABB.surroundingBox(outputBox, tmpBox);
+          firstBox = false;
+        }
+
+        return outputBox;
+      }
+    }
+
+    class BaseRaytraceMaterial {
+      type;
+
+      constructor() {}
+
+      static MaterialType = {
+        Lambertian: "Lambertian",
+        Metal: "Metal",
+        Dielectric: "Dielectric"
+      }
+
+      static getMaterialClass(type) {
+        switch(type) {
+          case BaseRaytraceMaterial.MaterialType.Lambertian:
+            return RaytraceLambertianMaterial;
+          case BaseRaytraceMaterial.MaterialType.Metal:
+            return RaytraceMetalMaterial;
+          case BaseRaytraceMaterial.MaterialType.Dielectric:
+            return RaytraceDielectricMaterial;
+          default:
+            throw "invalid material type.";
+        }
+      }
+
+      static scatter(inRay, hitInfo) {
+        throw "should implement method";
+      }
+    }
+
+    class SurfaceInfo {
+      attenuation;
+      scatteredRay;
+      constructor(attenuation, scatteredRay) {
+        this.attenuation = attenuation;
+        this.scatteredRay = scatteredRay;
+      }
+    }
+
+    class RaytraceLambertianMaterial extends BaseRaytraceMaterial {
+      albedo;
+
+      constructor(albedo) {
+        super();
+        this.type = BaseRaytraceMaterial.MaterialType.Lambertian;
+        this.albedo = albedo;
+      }
+
+      static scatter(material, inRay, hitInfo) {
+        const scatterDirection = Vector3.addVectors(
+          hitInfo.normal,
+          Vector3.randomUnitSphere()
+        ).normalize();
+        if(scatterDirection.isNearZero()) {
+          scatterDirection = hitInfo.normal;
+        }
+        const scatteredRay = new Ray(hitInfo.position, scatterDirection, inRay.time);
+        const attenuation = material.albedo;
+        return new SurfaceInfo(attenuation, scatteredRay);
+      }
+    }
+
+    class RaytraceMetalMaterial extends BaseRaytraceMaterial {
+      albedo;
+      fuzzy; // 0~1: 1であればあるほど鏡面に近づく
+
+      constructor(albedo, fuzzy) {
+        super();
+        this.type = BaseRaytraceMaterial.MaterialType.Metal;
+        this.albedo = albedo;
+        this.fuzzy = Math.min(fuzzy, 1);
+      }
+
+      static scatter(material, inRay, hitInfo) {
+        const reflected = Vector3.reflect(inRay.direction, hitInfo.normal).normalize();
+        const fuzzyReflected = reflected.clone()
+          .add(Vector3.randomInUnitSphere().mulScalar(material.fuzzy))
+          .normalize();
+        const scatteredRay = new Ray(hitInfo.position, fuzzyReflected);
+        const attenuation = material.albedo;
+        // 反射ベクトルと法線の角度が0以上の時は反射情報を返す
+        // でもほぼ必ずそうなるはず？
+        return Vector3.dotVectors(scatteredRay.direction, hitInfo.normal) > 0
+          ? new SurfaceInfo(attenuation, scatteredRay)
+          : null;
+      }
+    }
+
+    class RaytraceDielectricMaterial extends BaseRaytraceMaterial {
+      ir;
+
+      constructor(ir) {
+        super();
+        this.type = BaseRaytraceMaterial.MaterialType.Dielectric;
+        this.ir = ir;
+      }
+
+      static scatter(material, inRay, hitInfo) {
+        const attenuation = Vector3.one;
+
+        /**
+         * スネルの法則 
+         * sinθ1 = (ir1 / ir12) * sinθ2
+         * 
+         * ir ... 屈折率
+         * 
+         * ir1 < ir2 の場合 ... sinθ2 は 0~1 の範囲
+         * ir1 > ir2 の場合 ... sinθ1 が大きいと sinθ2 > 1 となる = 反射光のみ = 全反射
+         * 誘導体 ... 屈折する物体
+         * 
+         * ex)
+         * 空気の屈折率は1.0
+         * ガラスの屈折率は1.5
+         * 空気からガラスに入る場合は 1.0 => 1.5 の物質に入るので 1.0 / 1.5となる
+         * 
+         * 今回は屈折前後のどちらかは空気想定
+         */
+
+        const refractionRatio = hitInfo.isFrontFace
+          ? (1.0 / material.ir)
+          : material.ir;
+
+        const unitDirection = inRay.direction.clone().normalize();
+
+        /*
+         * 内積よりスネルの法則に必要なsinを取得できる
+         * sinTheta = sqrt(1 - cosTheta * cosTheta) // 三角関数の公式
+         * cosTheta = -inRay dot normal
+         */
+
+        // 法線と、反転した入射ベクトルの内積
+        const cosTheta = Math.min(
+          Vector3.dotVectors(unitDirection.clone().negate(), hitInfo.normal)
+        );
+
+        // sinθ1
+        const sinTheta = Math.sqrt(1.0 - cosTheta * cosTheta);
+
+        // 1以上の場合は全反射
+        const cannotRefract = refractionRatio * sinTheta > 1;
+
+        const refractedDir = (
+            cannotRefract ||
+            MathUtilities.shclick(cosTheta, refractionRatio) > Math.random()
+          )
+          ? Vector3.reflect(unitDirection, hitInfo.normal)
+          : Vector3.refract(unitDirection, hitInfo.normal, refractionRatio);
+
+        const scatteredRay = new Ray(hitInfo.position, refractedDir);
+
+        return new SurfaceInfo(attenuation, scatteredRay);
+      }
+    }
+  </script>
+
+  <script id="worker-script">
+    'use strict';
+
+    // scene: bvhNode
+    const getSceneColor = (ray, scene, maxRayIterationCount) => {
+      const resultColor = Vector3.one;
+      let currentRay = ray;
+
+      for(let i = 0; i < maxRayIterationCount; i++) {
+        // hittable geometry list を渡している場合
+        const hitInfo = HittableGeometryList.hit(
+          scene.hitObjects,
+          currentRay,
+          0.001,
+          1000
+        );
+        // const hitInfo = BVHNode.hit(
+        //   scene,
+        //   currentRay,
+        //   0.001,
+        //   1000, 
+        // );
+ 
+        if(!hitInfo) {
+          const rayDir = currentRay.direction.normalize();
+          const t = 0.5 * (rayDir.y + 1.0);
+          resultColor.mul(
+            new Vector3(1.0, 1.0, 1.0)
+              .mulScalar(1.0 - t)
+              .add(new Vector3(0.5, 0.7, 1.0).mulScalar(t))
+          );
+          break;
+        }
+
+        const surfaceInfo =
+          BaseRaytraceMaterial
+            .getMaterialClass(hitInfo.material.type)
+            .scatter(hitInfo.material, currentRay, hitInfo);
+
+        if(!surfaceInfo) {
+          // fall back
+          resultColor.mul(Vector3.zero);
+          break;
+        }
+
+        currentRay = surfaceInfo.scatteredRay;
+        resultColor.mul(surfaceInfo.attenuation);
+      }
+
+      return resultColor;
+    }
+
+    // TODO:
+    // - scene を trace する部分を外から渡せるように
+    // - raytracing class に移す方がたぶんよい
+    self.onmessage = (e) => {
+      const [{
+        scene,
+        camera,
+        width,
+        height,
+        sampleCountPerPixel,
+        maxRayIterationCount,
+        updatePixelIndexes
+      }] = e.data;
+
+      const positions = updatePixelIndexes.map(i => {
+        // ピクセル座標
+        const px = i % width;
+        const py = Math.floor(i / width);
+        // const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
+        // const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
+        // -1 ~ 1 に直す
+        const x = (px / width) * 2 - 1;
+        const y = (py / height) * 2 - 1;
+        const z = 0;
+        return [
+          x,
+          y,
+          z
+        ];
+      });
+
+      const stepX = 1 / width;
+      const stepY = 1 / height;
+
+      const gamma = (v) => {
+        return Math.pow(v, 1 / 2.2)
+      }
+
+      const colors = positions.map(p => {
+        const x = p[0];
+        const y = p[1];
+        const accColor = Vector3.zero;
+        for(let i = 0; i < sampleCountPerPixel; i++) {
+          const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
+          const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
+          const ray = Camera.getRay(
+            camera,
+            x + addX,
+            y + addY,
+            // MathUtilities.getRandomRange(camera.time0, camera.time1)
+          );
+          const currentColor = getSceneColor(ray, scene, maxRayIterationCount);
+          accColor.x += gamma(currentColor.x);
+          accColor.y += gamma(currentColor.y);
+          accColor.z += gamma(currentColor.z);
+        }
+        const scale = sampleCountPerPixel;
+        const color = accColor.divScalar(sampleCountPerPixel);
+        return color.toArray();
+      });
+
+      postMessage([{ positions, colors }]);
+    }
+  </script>
+
+  <script>
+    'use strict';
+
+    // const createScene = () => {
+    //   const scene = new HittableGeometryList();
+
+    //   scene.add(new HittableSphereGeometry(
+    //     new Vector3(0, -100.5, 0),
+    //     100,
+    //     new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
+    //   ));
+    //   scene.add(new HittableSphereGeometry(
+    //     new Vector3(0, 0, 0),
+    //     0.5,
+    //     new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
+    //   ));
+    //   scene.add(new HittableSphereGeometry(
+    //     new Vector3(-1.0, 0, 0),
+    //     0.5,
+    //     new RaytraceDielectricMaterial(1.5)
+    //   ));
+    //   scene.add(new HittableSphereGeometry(
+    //     new Vector3(-1.0, 0, 0),
+    //     -0.4,
+    //     new RaytraceDielectricMaterial(1.5)
+    //   ));
+    //   scene.add(new HittableSphereGeometry(
+    //     new Vector3(1.0, 0, 0),
+    //     0.5,
+    //     new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+    //   ));
+
+    //   return scene;
+    // }
+
+    const createScene = () => {
+      const scene = new HittableGeometryList();
+
+      // floor
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, -100.5, 0),
+        100,
+        new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0, 0),
+        0.5,
+        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 0, 3),
+        0.5,
+        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
+      ));
+
+
+      scene.add(new HittableMovingSphereGeometry(
+        new Vector3(0, 0, 1),
+        new Vector3(MathUtilities.getRandomRange(-0.25, 0.25), 0, 1),
+        0.0,
+        1.0,
+        0.2,
+        new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
+      ));
+
+      scene.add(new HittableMovingSphereGeometry(
+        new Vector3(0, 0, -1),
+        new Vector3(MathUtilities.getRandomRange(-0.25, 0.25), 0, 1),
+        0.0,
+        1.0,
+        0.2,
+        new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        0.5,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-1.0, 0, 0),
+        -0.4,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(1.0, 0, 0),
+        0.5,
+        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(1.0, 0, 1),
+        0.5,
+        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      ));
+
+      // scene.add(new HittableSphereGeometry(
+      //   new Vector3(2.0, 0, 1),
+      //   0.5,
+      //   new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      // ));
+
+
+
+      return scene;
+    }
+
+    const createRandomScene = () => {
+      const scene = new HittableGeometryList();
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, -1000, 0),
+        1000,
+        new RaytraceLambertianMaterial(new Vector3(0.5, 0.5, 0.5))
+      ));
+
+      let seed = 11;
+      // const offset = 3;
+
+      for(let i = -seed; i < seed; i++) {
+        for(let j = -seed; j < seed; j++) {
+          const chooseMat = Math.random();
+          //const offX = offset / seed;
+          //const offY = offset / seed;
+
+          const center = new Vector3(
+            i + Math.random() * 0.9,
+            0.2,
+            j + Math.random() * 0.9
+            // -offset * (i / 2) + offX * i + Math.random() * 0.8,
+            // 0.2,
+            // -offset * (j / 2) + offY * j + Math.random() * 0.9,
+          );
+          if((Vector3.subVectors(center, new Vector3(4, 0.2, 0))).length() > 0.9) {
+            let material;
+            if(chooseMat < 0.8) {
+              const albedo = Vector3.mulVectors(
+                Vector3.random(),
+                Vector3.random()
+              );
+              material = new RaytraceLambertianMaterial(albedo);
+            } else if(chooseMat < 0.95) {
+              const albedo = Vector3.random(0.5, 1);
+              const fuzz = MathUtilities.getRandomRange(0, 0.5);
+              material = new RaytraceMetalMaterial(albedo, fuzz);
+            } else {
+              material = new RaytraceDielectricMaterial(1.5);
+            }
+            scene.add(new HittableSphereGeometry(center, 0.2, material));
+          }
+        }
+      }
+
+      // scene.add(new HittableSphereGeometry(
+      //   new Vector3(0, 0.5, 2),
+      //   0.5,
+      //   new RaytraceLambertianMaterial(new Vector3(1, 0, 0))
+      // ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(0, 1, 0),
+        1.0,
+        new RaytraceDielectricMaterial(1.5)
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(-4, 1, 0),
+        1.0,
+        new RaytraceLambertianMaterial(new Vector3(0.4, 0.2, 0.1))
+      ));
+
+      scene.add(new HittableSphereGeometry(
+        new Vector3(4, 1, 0),
+        1.0,
+        new RaytraceMetalMaterial(new Vector3(0.7, 0.6, 0.5), 0)
+      ));
+
+      return scene;
+    }
+
+    const clientPosition = {
+      x: 0.5,
+      y: 0.5,
+    };
+
+    // initial args
+    const raytraceStates = {
+      camera: null,
+      width: 320,
+      height: 180,
+      threadNum: Math.min(8, window.navigator.hardwareConcurrency),
+      drawPointNum: 64,
+      sampleCountPerPixel: 4,
+      maxRayIterationCount: 16,
+    } 
+
+    const canvas = document.querySelector(".js-canvas");
+
+    const gpu = new GPU({
+      canvas,
+    });
+
+    const raytraceRenderer = new RaytraceRenderer({ gpu });
+
+    // const scene = createRandomScene();
+    const scene = createScene();
+    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
+
+    const createCamera = () => {
+      // const cameraPosition = new Vector3(13, 2, 3);
+      const cameraPosition = 
+        new Vector3(3, 3, 2)
+          .add(new Vector3(clientPosition.x * 3, clientPosition.y, 0));
+      const cameraLookAt = new Vector3(0, 0, 0);
+      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
+      const fov = 20;
+      const aperture = 0.1;
+      return new Camera(
+        cameraPosition,
+        cameraLookAt,
+        new Vector3(0, 1, 0), // up
+        fov,
+        raytraceStates.width / raytraceStates.height, // aspect
+        aperture,
+        distToFocus,
+        0.0,
+        1.0
+      );
+    }
+
+    const init = () => {
+      const orderedPixelIndexes = ArrayUtilities.shuffle(
+        [...new Array(raytraceStates.width * raytraceStates.height)].map((_, i) => i)
+      );
+      raytraceRenderer.init({
+        updatePixelIndexes: orderedPixelIndexes,
+        ...raytraceStates
+      });
+    }
+
+    const start = () => {
+      canvas.width = raytraceStates.width;
+      canvas.height = raytraceStates.height;
+
+      raytraceRenderer.stop();
+      raytraceRenderer.setSize(raytraceStates.width, raytraceStates.height);
+
+      init();
+
+      raytraceRenderer.start({
+        // scene: bvhRoot,
+        scene,
+        camera: createCamera()
+      });
+    }
+
+    const onMousemove = (e) => {
+      const aspect = raytraceStates.width / raytraceStates.height;
+
+      // 同義
+      // rect.width = raytraceStates.width
+      // rect.height = raytraceStates.height
+
+      const rect = canvas.getBoundingClientRect();
+      const coord = {
+        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        y: ((e.clientY - rect.top) / rect.height) * 2 - 1
+      }
+      coord.x *= aspect;
+
+      clientPosition.x = coord.x;
+      clientPosition.y = coord.y;
+
+      // TODO: camera position だけ変えたい
+      raytraceRenderer.updateCamera(createCamera());
+    }
+
+    const tick = (time) => {
+      raytraceRenderer.render();
+      requestAnimationFrame(tick);
+    }
+
+    canvas.addEventListener("mousemove", (e) => onMousemove(e));
+    raytraceStates.camera = createCamera();
+    start();
+    requestAnimationFrame(tick);
+
+    // const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
+    console.log("---------");
+    console.log(bvhRoot);
+    console.log("---------");
+
+    // // for debug
+    // const hitInfo = BVHNode.hit(
+    //   bvhRoot,
+    //   new Ray(
+    //     new Vector3(0, 0.4999, 1),
+    //     new Vector3(0, 0, -1),
+    //     MathUtilities.getRandomRange(0, 1)
+    //   ),
+    //   0.001,
+    //   1000, 
+    // );
+    // console.log("---------");
+    // console.log("result hitInfo", hitInfo);
+
+    new GUIDebugger();
+
+    GUIDebugger.addRange({
+      name: "canvas scale",
+      initialValue: 1,
+      min: 0.5,
+      max: 3,
+      step: 0.1,
+      onInit: (value) => {
+        canvas.style.transform = `scale(${value})`;
+      },
+      onChange: (value) => {
+        canvas.style.transform = `scale(${value})`;
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "width",
+      initialValue: raytraceStates.width,
+      min: 1,
+      max: 640,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.width = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "height",
+      initialValue: raytraceStates.height,
+      min: 1,
+      max: 640,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.height = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "worker num",
+      initialValue: raytraceStates.threadNum,
+      min: 1,
+      max: window.navigator.hardwareConcurrency,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.threadNum = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "draw point num each worker",
+      initialValue: raytraceStates.drawPointNum,
+      min: 1,
+      max: 4096,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.drawPointNum = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "sampler count per pixel",
+      initialValue: raytraceStates.sampleCountPerPixel,
+      min: 1,
+      max: 128,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.sampleCountPerPixel = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "max ray iteration count",
+      initialValue: raytraceStates.maxRayIterationCount,
+      min: 1,
+      max: 128,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.maxRayIterationCount = value;
+        start();
+      }
+    });
+  </script>
+</body>
+</html>
