@@ -2627,9 +2627,7 @@
 
     self.onmessage = (e) => {
       const [args] = e.data;
-
       const result = RaytraceRenderer.calcPixelsColor({ ...args, });
-
       postMessage([result]);
     }
   </script>
