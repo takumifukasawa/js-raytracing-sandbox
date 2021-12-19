@@ -2388,7 +2388,6 @@
         new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
       ));
 
-
       scene.add(new HittableMovingSphereGeometry(
         new Vector3(0, 0, 1),
         new Vector3(MathUtilities.getRandomRange(-0.25, 0.25), 0, 1),
@@ -2430,87 +2429,6 @@
         new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
       ));
 
-      // scene.add(new HittableSphereGeometry(
-      //   new Vector3(2.0, 0, 1),
-      //   0.5,
-      //   new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
-      // ));
-
-
-
-      return scene;
-    }
-
-    const createRandomScene = () => {
-      const scene = new HittableGeometryList();
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, -1000, 0),
-        1000,
-        new RaytraceLambertianMaterial(new Vector3(0.5, 0.5, 0.5))
-      ));
-
-      let seed = 11;
-      // const offset = 3;
-
-      for(let i = -seed; i < seed; i++) {
-        for(let j = -seed; j < seed; j++) {
-          const chooseMat = Math.random();
-          //const offX = offset / seed;
-          //const offY = offset / seed;
-
-          const center = new Vector3(
-            i + Math.random() * 0.9,
-            0.2,
-            j + Math.random() * 0.9
-            // -offset * (i / 2) + offX * i + Math.random() * 0.8,
-            // 0.2,
-            // -offset * (j / 2) + offY * j + Math.random() * 0.9,
-          );
-          if((Vector3.subVectors(center, new Vector3(4, 0.2, 0))).length() > 0.9) {
-            let material;
-            if(chooseMat < 0.8) {
-              const albedo = Vector3.mulVectors(
-                Vector3.random(),
-                Vector3.random()
-              );
-              material = new RaytraceLambertianMaterial(albedo);
-            } else if(chooseMat < 0.95) {
-              const albedo = Vector3.random(0.5, 1);
-              const fuzz = MathUtilities.getRandomRange(0, 0.5);
-              material = new RaytraceMetalMaterial(albedo, fuzz);
-            } else {
-              material = new RaytraceDielectricMaterial(1.5);
-            }
-            scene.add(new HittableSphereGeometry(center, 0.2, material));
-          }
-        }
-      }
-
-      // scene.add(new HittableSphereGeometry(
-      //   new Vector3(0, 0.5, 2),
-      //   0.5,
-      //   new RaytraceLambertianMaterial(new Vector3(1, 0, 0))
-      // ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, 1, 0),
-        1.0,
-        new RaytraceDielectricMaterial(1.5)
-      ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(-4, 1, 0),
-        1.0,
-        new RaytraceLambertianMaterial(new Vector3(0.4, 0.2, 0.1))
-      ));
-
-      scene.add(new HittableSphereGeometry(
-        new Vector3(4, 1, 0),
-        1.0,
-        new RaytraceMetalMaterial(new Vector3(0.7, 0.6, 0.5), 0)
-      ));
-
       return scene;
     }
 
@@ -2522,10 +2440,10 @@
     // initial args
     const raytraceStates = {
       camera: null,
-      width: 320,
-      height: 180,
+      width: 240,
+      height: 135,
       threadNum: Math.min(8, window.navigator.hardwareConcurrency),
-      drawPointNum: 64,
+      drawPointNum: 128,
       sampleCountPerPixel: 4,
       maxRayIterationCount: 16,
     } 
