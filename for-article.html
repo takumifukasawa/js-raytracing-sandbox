@@ -2770,12 +2770,14 @@ f 3/2/8 4/5/8 6/6/8
       y: 0.5,
     };
 
+    const maxThreadNum = window.navigator.hardwareConcurrency || 1;
+
     // initial args
     const raytraceStates = {
       camera: null,
       width: 240,
       height: 135,
-      threadNum: Math.min(8, window.navigator.hardwareConcurrency),
+      threadNum: Math.min(8, maxThreadNum),
       drawPointNum: 128,
       initialSampleCountPerPixel: 2,
       sampleCountPerPixelStep: 2,
@@ -2939,7 +2941,7 @@ f 3/2/8 4/5/8 6/6/8
       name: "thread num",
       initialValue: raytraceStates.threadNum,
       min: 0,
-      max: window.navigator.hardwareConcurrency,
+      max: maxThreadNum,
       step: 1,
       onChange: (value) => {
         raytraceStates.threadNum = value;
