@@ -1801,6 +1801,64 @@
         return true;
       }
 
+      static calcPixelsColor({
+        scene,
+        camera,
+        width,
+        height,
+        sampleCountPerPixel,
+        maxRayIterationCount,
+        updatePixelIndexes,
+        getSceneColorFunc
+      }) {
+        const positions = updatePixelIndexes.map(i => {
+          // ピクセル座標
+          const px = i % width;
+          const py = Math.floor(i / width);
+          // ランダムにする場合
+          // const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
+          // const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
+          // -1 ~ 1 に直す
+          const x = (px / width) * 2 - 1;
+          const y = (py / height) * 2 - 1;
+          const z = 0;
+          return [ x, y, z ];
+        });
+
+        const stepX = 1 / width;
+        const stepY = 1 / height;
+
+        const gamma = (v) => {
+          return Math.pow(v, 1 / 2.2)
+        }
+
+        const colors = positions.map(p => {
+          const x = p[0];
+          const y = p[1];
+          const accColor = Vector3.zero;
+          for(let i = 0; i < sampleCountPerPixel; i++) {
+            const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
+            const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
+            const ray = Camera.getRay(
+              camera,
+              x + addX,
+              y + addY,
+              // MathUtilities.getRandomRange(camera.time0, camera.time1)
+            );
+            const currentColor = getSceneColorFunc(ray, scene, maxRayIterationCount);
+            accColor.x += gamma(currentColor.x);
+            accColor.y += gamma(currentColor.y);
+            accColor.z += gamma(currentColor.z);
+          }
+          const scale = sampleCountPerPixel;
+          const color = accColor.divScalar(sampleCountPerPixel);
+          return color.toArray();
+        });
+
+        return { positions, colors, }
+      }
+
+
       start({ scene, camera }) {
         if(camera) {
           this.#camera = camera;
@@ -2563,58 +2621,11 @@
     }
 
     self.onmessage = (e) => {
-      const [{
-        scene,
-        camera,
-        width,
-        height,
-        sampleCountPerPixel,
-        maxRayIterationCount,
-        updatePixelIndexes
-      }] = e.data;
+      const [args] = e.data;
 
-      const positions = updatePixelIndexes.map(i => {
-        // ピクセル座標
-        const px = i % width;
-        const py = Math.floor(i / width);
-        // ランダムにする場合
-        // const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
-        // const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
-        // -1 ~ 1 に直す
-        const x = (px / width) * 2 - 1;
-        const y = (py / height) * 2 - 1;
-        const z = 0;
-        return [ x, y, z ];
-      });
-
-      const stepX = 1 / width;
-      const stepY = 1 / height;
-
-      const gamma = (v) => {
-        return Math.pow(v, 1 / 2.2)
-      }
-
-      const colors = positions.map(p => {
-        const x = p[0];
-        const y = p[1];
-        const accColor = Vector3.zero;
-        for(let i = 0; i < sampleCountPerPixel; i++) {
-          const addX = MathUtilities.getRandomRange(-1, 1) * stepX;
-          const addY = MathUtilities.getRandomRange(-1, 1) * stepY;
-          const ray = Camera.getRay(
-            camera,
-            x + addX,
-            y + addY,
-            // MathUtilities.getRandomRange(camera.time0, camera.time1)
-          );
-          const currentColor = getSceneColor(ray, scene, maxRayIterationCount);
-          accColor.x += gamma(currentColor.x);
-          accColor.y += gamma(currentColor.y);
-          accColor.z += gamma(currentColor.z);
-        }
-        const scale = sampleCountPerPixel;
-        const color = accColor.divScalar(sampleCountPerPixel);
-        return color.toArray();
+      const { positions, colors } = RaytraceRenderer.calcPixelsColor({
+        getSceneColorFunc: getSceneColor,
+        ...args,
       });
 
       postMessage([{ positions, colors }]);
