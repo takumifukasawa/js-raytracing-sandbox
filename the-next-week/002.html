@@ -564,7 +564,8 @@
       box;
 
       static createRoot(objects, time0, time1) {
-        console.log("creat BVHNode root", objects.length, time0, time1);
+        // for debug
+        // console.log("creat BVHNode root", objects.length, time0, time1);
         return new BVHNode(objects, 0, objects.length, time0, time1);
       }
 
@@ -1479,6 +1480,7 @@
     class RaytraceRenderer {
       #renderer;
       #renderTarget;
+      #camera;
       #pointMesh;
       #pointGeometry;
       #fullQuadMesh;
@@ -1639,6 +1641,10 @@
         });
       }
 
+      setCamera(camera) {
+        this.#camera = camera;
+      }
+
       start({
         scene,
         camera,
@@ -1652,6 +1658,8 @@
       }) {
         this.initPointGeometry(drawPointNum);
 
+        this.#camera = camera;
+
         // 一応copy
         const needsUpdatePixelIndexes = [...orderedPixelIndexes];
 
@@ -1663,10 +1671,13 @@
           // await wait(1000);
 
           // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
-          const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
+          // const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
+          const updatePixelIndexes = [...new Array(drawPointNum)].map(() => {
+            return Math.floor(Math.random() * needsUpdatePixelIndexes.length);
+          });
           const args = {
             scene,
-            camera,
+            camera: this.#camera,
             width: sceneWidth,
             height: sceneHeight,
             sampleCountPerPixel,
@@ -2515,24 +2526,61 @@
 
     // initial args
     const raytraceStates = {
-      sceneWidth: 320,
-      sceneHeight: 180,
-      maxWorkerNum: Math.min(2, window.navigator.hardwareConcurrency),
+      sceneWidth: 160,
+      sceneHeight: 90,
+      maxWorkerNum: Math.min(4, window.navigator.hardwareConcurrency),
       drawPointNum: 128,
-      sampleCountPerPixel: 8,
-      maxRayIterationCount: 64,
+      sampleCountPerPixel: 4,
+      maxRayIterationCount: 16,
     } 
 
     const canvas = document.querySelector(".js-canvas");
-
-    canvas.width = raytraceStates.sceneWidth;
-    canvas.height = raytraceStates.sceneHeight;
 
     const gpu = new GPU({
       canvas,
     });
 
     const raytraceRenderer = new RaytraceRenderer({ gpu });
+
+    canvas.addEventListener("mousemove", (e) => {
+      const aspect = raytraceStates.sceneWidth / raytraceStates.sceneHeight;
+
+      // 同義
+      // rect.width = raytraceStates.width
+      // rect.height = raytraceStates.height
+
+      const rect = canvas.getBoundingClientRect();
+      const coord = {
+        x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
+        y: ((e.clientY - rect.top) / rect.height) * 2 - 1
+      }
+      // coord.x *= aspect;
+
+      // console.log(coord);
+
+      const cameraPosition = (new Vector3(0, 3, 2))
+        .add(new Vector3(coord.x * 3, coord.y, 0));
+      const cameraLookAt = new Vector3(0, 0, 0);
+      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
+      const fov = 20;
+      const aperture = 0.1;
+      const camera = new Camera(
+        cameraPosition,
+        cameraLookAt,
+        new Vector3(0, 1, 0), // up
+        fov,
+        aspect, // aspect
+        aperture,
+        distToFocus,
+        0.0,
+        1.0
+      );
+
+      raytraceRenderer.setCamera(camera);
+
+      // console.log(e.screenX - e.clientX, e.screenY - e.clientY);
+      // console.log(e)
+    });
 
     // const scene = createRandomScene();
     const scene = createScene();
@@ -2659,7 +2707,7 @@
       name: "sampler count per pixel",
       initialValue: raytraceStates.sampleCountPerPixel,
       min: 1,
-      max: 256,
+      max: 128,
       step: 1,
       onChange: (value) => {
         console.log("GUIDebugger onChange", "sample count per pixel", value);
