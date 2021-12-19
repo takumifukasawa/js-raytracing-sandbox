@@ -2570,8 +2570,9 @@
       1.0
     );
 
+    // initial args
     const raytraceArgs = {
-      maxWorkerNum: MAX_WORKER_NUM,
+      maxWorkerNum: Math.min(2, window.navigator.hardwareConcurrency),
       drawPointNum: DRAW_POINT_NUM,
       sampleCountPerPixel: SAMPLE_COUNT_PER_PIXEL,
       maxRayIterationCount: MAX_RAY_ITERATION_COUNT,
@@ -2626,20 +2627,59 @@
     // console.log("result hitInfo", hitInfo);
 
     new GUIDebugger();
+
     GUIDebugger.addRange({
       name: "worker num",
+      initialValue: raytraceArgs.maxWorkerNum,
       min: 1,
       max: window.navigator.hardwareConcurrency,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "hoge", value)
+        console.log("GUIDebugger onChange", "worker num", value);
         raytraceArgs.maxWorkerNum = value;
         start();
       }
     });
 
-    const restart = () => {
-    }
+    GUIDebugger.addRange({
+      name: "draw point num each worker",
+      initialValue: raytraceArgs.drawPointNum,
+      min: 1,
+      max: 256,
+      step: 1,
+      onChange: (value) => {
+        console.log("GUIDebugger onChange", "draw point num", value);
+        raytraceArgs.drawPointNum = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "sampler count per pixel",
+      initialValue: raytraceArgs.sampleCountPerPixel,
+      min: 1,
+      max: 256,
+      step: 1,
+      onChange: (value) => {
+        console.log("GUIDebugger onChange", "sample count per pixel", value);
+        raytraceArgs.sampleCountPerPixel = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "max ray iteration count",
+      initialValue: raytraceArgs.maxRayIterationCount,
+      min: 1,
+      max: 128,
+      step: 1,
+      onChange: (value) => {
+        console.log("GUIDebugger onChange", "max ray iteration count", value);
+        raytraceArgs.maxRayIterationCount = value;
+        start();
+      }
+    });
+
   </script>
 </body>
 </html>
