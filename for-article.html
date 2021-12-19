@@ -183,6 +183,108 @@
       };
     }
 
+    class ParserUtilities {
+      // obj の情報はここに書いてある
+      // https://ja.wikipedia.org/wiki/Wavefront_.obj%E3%83%95%E3%82%A1%E3%82%A4%E3%83%AB
+      // ref: https://raw.githubusercontent.com/takumifukasawa/vanilla-webgl/master/vanilla-webgl2-load-obj/js/libs/loadObj.js
+      static parseObj(text) {
+        // const response = await fetch(path);
+        // const text = await response.text();
+        const lines = text.split('\n');
+      
+        // webgl用のデータ群
+        const positions = [];
+        const uvs = [];
+        const normals = [];
+        const indices = [];
+      
+        // objから読みだした生データ
+        const rawPositions = [];
+        const rawUvs = [];
+        const rawNormals = [];
+        const rawFaces = [];
+      
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i];
+          const elements = line.split(' ');
+          const head = elements[0];
+          switch (head) {
+            // position
+            case 'v':
+              rawPositions.push([
+                Number.parseFloat(elements[1]),
+                Number.parseFloat(elements[2]),
+                Number.parseFloat(elements[3]),
+              ]);
+              break;
+            // uv
+            case 'vt':
+              rawUvs.push([
+                Number.parseFloat(elements[1]),
+                Number.parseFloat(elements[2]),
+              ]);
+              break;
+            // normal
+            case 'vn':
+              rawNormals.push([
+                Number.parseFloat(elements[1]),
+                Number.parseFloat(elements[2]),
+                Number.parseFloat(elements[3]),
+              ]);
+              break;
+            // face
+            // p/n/uv の配列
+            case 'f':
+              rawFaces.push([elements[1], elements[2], elements[3]]);
+              break;
+          }
+        }
+      
+        // TODO: normal, uv が存在しないときの対応
+        for (let i = 0; i < rawFaces.length; i++) {
+          const face = rawFaces[i];
+        
+          const v0 = face[0].split('/');
+          const v1 = face[1].split('/');
+          const v2 = face[2].split('/');
+        
+          const p0 = Number.parseInt(v0[0], 10) - 1;
+          const uv0 = Number.parseInt(v0[1], 10) - 1;
+          const n0 = Number.parseInt(v0[2], 10) - 1;
+        
+          const p1 = Number.parseInt(v1[0], 10) - 1;
+          const uv1 = Number.parseInt(v1[1], 10) - 1;
+          const n1 = Number.parseInt(v1[2], 10) - 1;
+        
+          const p2 = Number.parseInt(v2[0], 10) - 1;
+          const uv2 = Number.parseInt(v2[1], 10) - 1;
+          const n2 = Number.parseInt(v2[2], 10) - 1;
+        
+          positions.push(rawPositions[p0]);
+          positions.push(rawPositions[p1]);
+          positions.push(rawPositions[p2]);
+        
+          uvs.push(rawUvs[uv0]);
+          uvs.push(rawUvs[uv1]);
+          uvs.push(rawUvs[uv2]);
+        
+          normals.push(rawNormals[n0]);
+          normals.push(rawNormals[n1]);
+          normals.push(rawNormals[n2]);
+        
+          const offset = i * 2;
+          indices.push(i + offset, i + offset + 1, i + offset + 2);
+        }
+      
+        return {
+          positions: positions.flat(),
+          uvs: uvs.flat(),
+          normals: normals.flat(),
+          indices: indices.flat(),
+        };
+      }
+    }
+
     // 使ってない & たぶんいらない
     class FunctionWorker extends Worker {
       constructor(src) {
@@ -1679,6 +1781,8 @@
           };
 
           if(pixelIndexes.length > 0) {
+            // for debug
+            await wait(1000);
             worker.postMessage([args]);
           } else {
             await wait(1000 / 60);
@@ -1756,6 +1860,7 @@
       static GeometryType = {
         Sphere: "Sphere",
         MovingSphere: "MovingSphere",
+        Polygons: "Polygons"
       }
 
       constructor(type) {
@@ -1776,6 +1881,8 @@
             return HittableSphereGeometry;
           case BaseHittableGeometry.GeometryType.MovingSphere:
             return HittableMovingSphereGeometry;
+          case BaseHittableGeometry.GeometryType.Polygons:
+            return HittablePolygonsGeometry;
           default:
             throw "invalid geometry type";
         }
@@ -1993,7 +2100,124 @@
       }
     }
 
+    class HittablePolygonsGeometry extends BaseHittableGeometry {
+      positions;
+      normals;
+      indices;
+      material;
+      
+      constructor(positions, normals, indices, material) {
+        super(BaseHittableGeometry.GeometryType.Polygons);
+        this.positions = positions;
+        this.normals = normals;
+        this.material = material;
+        this.indices = indices;
+      }
 
+      static hit(polygons, ray, tMin, tMax) {
+        const faceCount = polygons.indices / 3;
+
+        for(let i = 0; i < faceCount; i++) {
+          const i0 = polygons.indices[i * 3];
+          const i1 = polygons.indices[i * 3 + 1];
+          const i2 = polygons.indices[i * 3 + 2];
+
+          const v0 = polygons.positions[i0];
+          const v1 = polygons.positions[i1];
+          const v2 = polygons.positions[i2];
+
+          const n0 = polygons.normals[i0];
+          const n1 = polygons.normals[i1];
+          const n2 = polygons.normals[i2];
+
+          const edge01 = Vector3.subVectors(v1, v0);
+          const edge02 = Vector3.subVectors(v2, v0);
+
+          const faceNormal = Vector3.addVectors(n0, n1, n2).normalize();
+
+          const q = Vector3.crossVectors(ray.direction, edge02);
+          const a = Vector3.dotVectors(edge01, q);
+
+          const eps = 0.0001;
+
+          // backface culling
+          if(Vector3.dotVectors(ray.direction, faceNormal) >= 0 || Math.abs(a) <= eps) {
+            return null;
+          }
+
+          const s = Vector3.subVectors(ray.origin, v0).divScalar(a);
+          const r = Vector3.dotVectors(s, edge01);
+
+          const b0 = Vector3.dotVectors(s, q);
+          const b1 = Vector3.dotVectors(r, ray.direction);
+          const b2 = 1 - b0 - b1;
+          const barycentricCoord = new Vector3(b0, b1, b2);
+
+          if(barycentricCoord.x < 0 || barycentricCoord.y < 0 || barycentricCoord.z) {
+            return null;
+          }
+
+          const distance = Vector3.dotVectors(edge02, r);
+
+          if(distance < 0) {
+            return null;
+          }
+
+          return new HitInfo({
+            distance,
+            position: new Vector3(v0, v1, v2),
+            normal: faceNormal,
+            material: polygons.material,
+            isFrontFace: false // backface culling してるので false
+          });
+        }
+
+        // return new HitInfo({
+        //   distance,
+        //   position,
+        //   normal,
+        //   material: sphere.material,
+        //   isFrontFace
+        // });
+      }
+
+      // TODO: 各座標をiterateして最小最大から計算
+      static boundingBox(polygons) {
+
+        const vertexCount = polygons.positions.length / 3;
+
+        const vxs = [];
+        const vys = [];
+        const vzs = [];
+
+        for(let i = 0; i < vertexCount; i++) {
+          const i0 = i * 3;
+          const i1 = i * 3 + 1;
+          const i2 = i * 3 + 2;
+          const x = polygons.positions[i * 3];
+          const y = polygons.positions[i * 3 + 1];
+          const z = polygons.positions[i * 3 + 2];
+          vxs.push(x);
+          vys.push(y);
+          vzs.push(z);
+        }
+
+        const min = new Vector3(
+          Math.min(...vxs),
+          Math.min(...vys),
+          Math.min(...vzs),
+        );
+        const max = new Vector3(
+          Math.max(...vxs),
+          Math.max(...vys),
+          Math.max(...vzs),
+        );
+
+        const box = new AABB(min, max);
+
+        return box;
+      }
+    }
 
     // 本当はBaseHittableGeometryを継承させていた方がいい
     class HittableGeometryList {
@@ -2377,34 +2601,35 @@
         new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
       ));
 
-      scene.add(new HittableSphereGeometry(
-        new Vector3(0, 0, 0),
-        0.5,
-        new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
-      ));
+      // scene.add(new HittableSphereGeometry(
+      //   new Vector3(0, 0, 0),
+      //   0.5,
+      //   new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
+      // ));
+
       scene.add(new HittableSphereGeometry(
         new Vector3(0, 0, 3),
         0.5,
         new RaytraceLambertianMaterial(new Vector3(0.1, 0.2, 0.5))
       ));
 
-      scene.add(new HittableMovingSphereGeometry(
-        new Vector3(0, 0, 1),
-        new Vector3(MathUtilities.getRandomRange(-0.25, 0.25), 0, 1),
-        0.0,
-        1.0,
-        0.2,
-        new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
-      ));
+      // scene.add(new HittableMovingSphereGeometry(
+      //   new Vector3(0, 0, 1),
+      //   new Vector3(MathUtilities.getRandomRange(-0.25, 0.25), 0, 1),
+      //   0.0,
+      //   1.0,
+      //   0.2,
+      //   new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
+      // ));
 
-      scene.add(new HittableMovingSphereGeometry(
-        new Vector3(0, 0, -1),
-        new Vector3(MathUtilities.getRandomRange(-0.25, 0.25), 0, 1),
-        0.0,
-        1.0,
-        0.2,
-        new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
-      ));
+      // scene.add(new HittableMovingSphereGeometry(
+      //   new Vector3(0, 0, -1),
+      //   new Vector3(MathUtilities.getRandomRange(-0.25, 0.25), 0, 1),
+      //   0.0,
+      //   1.0,
+      //   0.2,
+      //   new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
+      // ));
 
       scene.add(new HittableSphereGeometry(
         new Vector3(-1.0, 0, 0),
@@ -2423,10 +2648,64 @@
         new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
       ));
 
-      scene.add(new HittableSphereGeometry(
-        new Vector3(1.0, 0, 1),
-        0.5,
-        new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      // scene.add(new HittableSphereGeometry(
+      //   new Vector3(1.0, 0, 1),
+      //   0.5,
+      //   new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
+      // ));
+
+      const objText = `# Blender v2.92.0 OBJ File: ''
+# www.blender.org
+o Cube_Cube.001
+v -1.000000 0.000000 1.000000
+v -1.000000 2.000000 1.000000
+v -1.000000 0.000000 -1.000000
+v -1.000000 2.000000 -1.000000
+v 1.000000 0.000000 1.000000
+v 1.000000 2.000000 1.000000
+v 1.000000 0.000000 -1.000000
+v 1.000000 2.000000 -1.000000
+vt 0.625000 0.000000
+vt 0.375000 0.250000
+vt 0.375000 0.000000
+vt 0.625000 0.250000
+vt 0.375000 0.500000
+vt 0.625000 0.500000
+vt 0.375000 0.750000
+vt 0.625000 0.750000
+vt 0.375000 1.000000
+vt 0.125000 0.750000
+vt 0.125000 0.500000
+vt 0.875000 0.500000
+vt 0.625000 1.000000
+vt 0.875000 0.750000
+vn -1.0000 0.0000 0.0000
+vn 0.0000 0.0000 -1.0000
+vn 1.0000 0.0000 0.0000
+vn 0.0000 0.0000 1.0000
+vn 0.0000 -1.0000 0.0000
+vn 0.0000 1.0000 0.0000
+s off
+f 2/1/1 3/2/1 1/3/1
+f 4/4/2 7/5/2 3/2/2
+f 8/6/3 5/7/3 7/5/3
+f 6/8/4 1/9/4 5/7/4
+f 7/5/5 1/10/5 3/11/5
+f 4/12/6 6/8/6 8/6/6
+f 2/1/1 4/4/1 3/2/1
+f 4/4/2 8/6/2 7/5/2
+f 8/6/3 6/8/3 5/7/3
+f 6/8/4 2/13/4 1/9/4
+f 7/5/5 5/7/5 1/10/5
+f 4/12/6 2/14/6 6/8/6`;
+
+      const objData = ParserUtilities.parseObj(objText);
+
+      scene.add(new HittablePolygonsGeometry(
+        objData.positions,
+        objData.normals,
+        objData.indices,
+        new RaytraceLambertianMaterial(new Vector3(0.5, 0.2, 0.1))
       ));
 
       return scene;
@@ -2442,9 +2721,10 @@
       camera: null,
       width: 240,
       height: 135,
-      threadNum: Math.min(8, window.navigator.hardwareConcurrency),
-      drawPointNum: 128,
-      sampleCountPerPixel: 4,
+      // threadNum: Math.min(8, window.navigator.hardwareConcurrency),
+      threadNum: 1,
+      drawPointNum: 1,
+      sampleCountPerPixel: 1,
       maxRayIterationCount: 16,
     } 
 

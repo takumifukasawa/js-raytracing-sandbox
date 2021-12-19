@@ -19,3 +19,5 @@
 [Generate Random Points over the Disk](https://rh8liuqy.github.io/Uniform_Disk.html)
 
 [週末レイトレーシング (翻訳)](https://inzkyk.xyz/ray_tracing_in_one_weekend/)
+
+[https://graphicscodex.com/Sample2-RayTriangleIntersection.pdf](https://graphicscodex.com/Sample2-RayTriangleIntersection.pdf)
