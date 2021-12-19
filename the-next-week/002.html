@@ -2545,9 +2545,9 @@
       maxRayIterationCount: 16,
     } 
 
-    const createCamera = (offset) => {
+    const createCamera = (offset = Vector3.zero) => {
       // const cameraPosition = new Vector3(13, 2, 3);
-      const cameraPosition = new Vector3(3, 3, 2);
+      const cameraPosition = new Vector3(3, 3, 2).add(offset);
       const cameraLookAt = new Vector3(0, 0, 0);
       const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
       const fov = 20;
@@ -2707,7 +2707,7 @@
       name: "draw point num each worker",
       initialValue: raytraceStates.drawPointNum,
       min: 1,
-      max: 256,
+      max: 2048,
       step: 1,
       onChange: (value) => {
         console.log("GUIDebugger onChange", "draw point num", value);
