@@ -1572,6 +1572,7 @@
       #initialSampleCountPerPixel;
       #sampleCountPerPixelStep;
       #currentSampleCountPerPixel;
+      #maxSampleCountPerPixel;
       #maxRayIterationCount;
       #drawPointNum;
 
@@ -1737,6 +1738,7 @@
         drawPointNum,
         initialSampleCountPerPixel,
         sampleCountPerPixelStep,
+        maxSampleCountPerPixel,
         maxRayIterationCount,
       }) {
         this.#updatePixelIndexes = updatePixelIndexes;
@@ -1745,6 +1747,7 @@
         this.#height = height;
         this.#initialSampleCountPerPixel = initialSampleCountPerPixel;
         this.#sampleCountPerPixelStep = sampleCountPerPixelStep;
+        this.#maxSampleCountPerPixel = maxSampleCountPerPixel;
         this.#maxRayIterationCount = maxRayIterationCount;
         this.#drawPointNum = drawPointNum;
 
@@ -1804,9 +1807,18 @@
             this.#workers[i].worker.postMessage([args]);
           } else {
             this.#workers[i].isFinished = true;
-            if(this.isFinishedAllWorker()) {
+            // 必要なピクセルを更新しきったら精度を高くして描画
+            // 最大サンプリング数まで到達したら打ち切り
+            if(
+              this.isFinishedAllWorker() &&
+              this.#currentSampleCountPerPixel < this.#maxSampleCountPerPixel
+            ) {
               this.#beginDrawPointIndex = 0;
-              this.#currentSampleCountPerPixel += this.#sampleCountPerPixelStep;
+              this.#currentSampleCountPerPixel = MathUtilities.clamp(
+                this.#currentSampleCountPerPixel + this.#sampleCountPerPixelStep,
+                this.#initialSampleCountPerPixel,
+                this.#maxSampleCountPerPixel
+              );
             }
             await wait(1000 / 60);
             await tryExecWorker(i);
@@ -2691,6 +2703,7 @@ f 3/2/8 4/5/8 6/6/8
       drawPointNum: 128,
       initialSampleCountPerPixel: 4,
       sampleCountPerPixelStep: 4,
+      maxSampleCountPerPixel: 256,
       maxRayIterationCount: 16,
       // for debug
       // threadNum: 1,
@@ -2884,12 +2897,24 @@ f 3/2/8 4/5/8 6/6/8
 
     GUIDebugger.addRange({
       name: "sample count per pixel step",
-      initialValue: raytraceStates.initialSampleCountPerPixel,
+      initialValue: raytraceStates.sampleCountPerPixelStep,
       min: 1,
       max: 128,
       step: 1,
       onChange: (value) => {
         raytraceStates.sampleCountPerPixelStep = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "max sample count per pixel",
+      initialValue: raytraceStates.maxSampleCountPerPixel,
+      min: 1,
+      max: 512,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.maxSampleCountPerPixel = value;
         start();
       }
     });
