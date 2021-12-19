@@ -1569,7 +1569,9 @@
       #threadNum;
       #width;
       #height;
-      #sampleCountPerPixel;
+      #initialSampleCountPerPixel;
+      #sampleCountPerPixelStep;
+      #currentSampleCountPerPixel;
       #maxRayIterationCount;
       #drawPointNum;
 
@@ -1733,17 +1735,22 @@
         updatePixelIndexes,
         threadNum,
         drawPointNum,
-        sampleCountPerPixel,
+        initialSampleCountPerPixel,
+        sampleCountPerPixelStep,
         maxRayIterationCount,
       }) {
-        this.initPointGeometry(drawPointNum);
         this.#updatePixelIndexes = updatePixelIndexes;
         this.#threadNum = threadNum;
         this.#width = width;
         this.#height = height;
-        this.#sampleCountPerPixel = sampleCountPerPixel;
+        this.#initialSampleCountPerPixel = initialSampleCountPerPixel;
+        this.#sampleCountPerPixelStep = sampleCountPerPixelStep;
         this.#maxRayIterationCount = maxRayIterationCount;
         this.#drawPointNum = drawPointNum;
+
+        this.#currentSampleCountPerPixel = this.#initialSampleCountPerPixel;
+
+        this.initPointGeometry(this.#drawPointNum);
       }
 
       updateCamera(camera = null) {
@@ -1775,7 +1782,7 @@
             camera: this.#camera,
             width: this.#width,
             height: this.#height,
-            sampleCountPerPixel: this.#sampleCountPerPixel,
+            sampleCountPerPixel: this.#currentSampleCountPerPixel,
             maxRayIterationCount: this.#maxRayIterationCount,
             updatePixelIndexes: pixelIndexes
           };
@@ -2519,9 +2526,6 @@
       return resultColor;
     }
 
-    // TODO:
-    // - scene を trace する部分を外から渡せるように
-    // - raytracing class に移す方がたぶんよい
     self.onmessage = (e) => {
       const [{
         scene,
@@ -2537,17 +2541,14 @@
         // ピクセル座標
         const px = i % width;
         const py = Math.floor(i / width);
+        // ランダムにする場合
         // const px = Math.floor(MathUtilities.getRandomRange(0, width + 1));
         // const py = Math.floor(MathUtilities.getRandomRange(0, height + 1));
         // -1 ~ 1 に直す
         const x = (px / width) * 2 - 1;
         const y = (py / height) * 2 - 1;
         const z = 0;
-        return [
-          x,
-          y,
-          z
-        ];
+        return [ x, y, z ];
       });
 
       const stepX = 1 / width;
@@ -2651,7 +2652,6 @@ f 3/2/8 4/5/8 6/6/8
         objData.positions,
         objData.normals,
         objData.indices,
-        // new RaytraceLambertianMaterial(new Vector3(0.1, 0.6, 0.4))
         new RaytraceMetalMaterial(new Vector3(0.8, 0.6, 0.2), 0.0)
       ));
 
@@ -2670,12 +2670,13 @@ f 3/2/8 4/5/8 6/6/8
       height: 135,
       threadNum: Math.min(8, window.navigator.hardwareConcurrency),
       drawPointNum: 128,
-      sampleCountPerPixel: 4,
+      initialSampleCountPerPixel: 4,
+      sampleCountPerPixelStep: 4,
       maxRayIterationCount: 16,
       // for debug
       // threadNum: 1,
       // drawPointNum: 1,
-      // sampleCountPerPixel: 1,
+      // initialSampleCountPerPixel: 1,
       // maxRayIterationCount: 1,
     } 
 
@@ -2687,7 +2688,6 @@ f 3/2/8 4/5/8 6/6/8
 
     const raytraceRenderer = new RaytraceRenderer({ gpu });
 
-    // const scene = createRandomScene();
     const scene = createScene();
     const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
 
@@ -2765,7 +2765,6 @@ f 3/2/8 4/5/8 6/6/8
     }
 
     canvas.addEventListener("mousemove", (e) => onMousemove(e));
-    raytraceStates.camera = createCamera();
     start();
     requestAnimationFrame(tick);
 
@@ -2844,7 +2843,7 @@ f 3/2/8 4/5/8 6/6/8
       name: "draw point num each worker",
       initialValue: raytraceStates.drawPointNum,
       min: 1,
-      max: 4096,
+      max: 1024,
       step: 1,
       onChange: (value) => {
         raytraceStates.drawPointNum = value;
@@ -2853,13 +2852,25 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "sampler count per pixel",
-      initialValue: raytraceStates.sampleCountPerPixel,
+      name: "initial sample count per pixel",
+      initialValue: raytraceStates.initialSampleCountPerPixel,
       min: 1,
       max: 128,
       step: 1,
       onChange: (value) => {
-        raytraceStates.sampleCountPerPixel = value;
+        raytraceStates.initialSampleCountPerPixel = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "sample count per pixel step",
+      initialValue: raytraceStates.initialSampleCountPerPixel,
+      min: 1,
+      max: 128,
+      step: 1,
+      onChange: (value) => {
+        raytraceStates.sampleCountPerPixelStep = value;
         start();
       }
     });
