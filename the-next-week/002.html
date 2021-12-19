@@ -1488,6 +1488,14 @@
       #workerScriptUrl;
       #beginDrawPointIndex;
 
+      #updatePixelIndexes;
+      #threadNum;
+      #width;
+      #height;
+      #sampleCountPerPixel;
+      #maxRayIterationCount;
+      #drawPointNum;
+
       constructor({ gpu }) {
         this.#workers = [];
 
@@ -1642,30 +1650,29 @@
         });
       }
 
-      setCamera(camera) {
-        this.#camera = camera;
-      }
-
-      start({
-        scene,
-        camera,
-        sceneWidth,
-        sceneHeight,
-        orderedPixelIndexes,
-        maxWorkerNum,
+      init({
+        width,
+        height,
+        updatePixelIndexes,
+        threadNum,
         drawPointNum,
         sampleCountPerPixel,
         maxRayIterationCount,
       }) {
         this.initPointGeometry(drawPointNum);
+        this.#updatePixelIndexes = updatePixelIndexes;
+        this.#threadNum = threadNum;
+        this.#width = width;
+        this.#height = height;
+        this.#sampleCountPerPixel = sampleCountPerPixel;
+        this.#maxRayIterationCount = maxRayIterationCount;
+        this.#drawPointNum = drawPointNum;
+      }
 
-        this.#camera = camera;
-
-        // 一応copy
-        const needsUpdatePixelIndexes = [...orderedPixelIndexes];
-
-        const threadNum = Math.min(maxWorkerNum, window.navigator.hardwareConcurrency);
-
+      start({
+        scene,
+        camera,
+     }) {
         this.#beginDrawPointIndex = 0;
 
         const tryExecWorker = async (worker) => {
@@ -1673,30 +1680,30 @@
           // await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
           // await wait(1000);
 
-          const updatePixelIndexes = needsUpdatePixelIndexes.slice(
+          const pixelIndexes = this.#updatePixelIndexes.slice(
             this.#beginDrawPointIndex,
-            this.#beginDrawPointIndex + drawPointNum
+            this.#beginDrawPointIndex + this.#drawPointNum
           );
-          this.#beginDrawPointIndex += drawPointNum;
+          this.#beginDrawPointIndex += this.#drawPointNum;
 
           const args = {
             scene,
-            camera: this.#camera,
-            width: sceneWidth,
-            height: sceneHeight,
-            sampleCountPerPixel,
-            maxRayIterationCount,
-            updatePixelIndexes
+            camera,
+            width: this.#width,
+            height: this.#height,
+            sampleCountPerPixel: this.#sampleCountPerPixel,
+            maxRayIterationCount: this.#maxRayIterationCount,
+            updatePixelIndexes: pixelIndexes
           };
 
-          if(updatePixelIndexes.length > 0) {
+          if(pixelIndexes.length > 0) {
             worker.postMessage([args]);
           } else {
             console.log("end worker !")
           }
         }
 
-        for(let i = 0; i < threadNum; i++) {
+        for(let i = 0; i < this.#threadNum; i++) {
           const worker = new Worker(this.#workerScriptUrl);
           this.#workers.push(worker);
 
@@ -2527,16 +2534,36 @@
       return scene;
     }
 
-
     // initial args
     const raytraceStates = {
-      sceneWidth: 160,
-      sceneHeight: 90,
-      maxWorkerNum: Math.min(4, window.navigator.hardwareConcurrency),
+      camera: null,
+      width: 160,
+      height: 90,
+      threadNum: Math.min(4, window.navigator.hardwareConcurrency),
       drawPointNum: 128,
       sampleCountPerPixel: 4,
       maxRayIterationCount: 16,
     } 
+
+    const createCamera = (offset) => {
+      // const cameraPosition = new Vector3(13, 2, 3);
+      const cameraPosition = new Vector3(3, 3, 2);
+      const cameraLookAt = new Vector3(0, 0, 0);
+      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
+      const fov = 20;
+      const aperture = 0.1;
+      return new Camera(
+        cameraPosition,
+        cameraLookAt,
+        new Vector3(0, 1, 0), // up
+        fov,
+        raytraceStates.width / raytraceStates.height, // aspect
+        aperture,
+        distToFocus,
+        0.0,
+        1.0
+      );
+    }
 
     const canvas = document.querySelector(".js-canvas");
 
@@ -2546,8 +2573,40 @@
 
     const raytraceRenderer = new RaytraceRenderer({ gpu });
 
-    canvas.addEventListener("mousemove", (e) => {
-      const aspect = raytraceStates.sceneWidth / raytraceStates.sceneHeight;
+    // const scene = createRandomScene();
+    const scene = createScene();
+    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
+
+    const init = () => {
+      const orderedPixelIndexes = ArrayUtilities.shuffle(
+        [...new Array(raytraceStates.width * raytraceStates.height)].map((_, i) => i)
+      );
+      raytraceRenderer.init({
+        updatePixelIndexes: orderedPixelIndexes,
+        ...raytraceStates
+      });
+    }
+
+    const start = () => {
+      canvas.width = raytraceStates.width;
+      canvas.height = raytraceStates.height;
+
+      raytraceRenderer.stop();
+      raytraceRenderer.setSize(raytraceStates.width, raytraceStates.height);
+
+      init();
+
+      raytraceRenderer.start({
+        scene: bvhRoot,
+        camera: raytraceStates.camera
+        // scene,
+        // camera,
+        // ...raytraceStates
+      });
+    }
+
+    const onMousemove = (e) => {
+      const aspect = raytraceStates.width / raytraceStates.height;
 
       // 同義
       // rect.width = raytraceStates.width
@@ -2560,77 +2619,19 @@
       }
       coord.x *= aspect;
 
-      // console.log(coord);
-
-      const cameraPosition = (new Vector3(0, 3, 2))
-        .add(new Vector3(coord.x * 3, coord.y, 0));
-      const cameraLookAt = new Vector3(0, 0, 0);
-      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
-      const fov = 20;
-      const aperture = 0.1;
-      const camera = new Camera(
-        cameraPosition,
-        cameraLookAt,
-        new Vector3(0, 1, 0), // up
-        fov,
-        aspect, // aspect
-        aperture,
-        distToFocus,
-        0.0,
-        1.0
-      );
-
-      raytraceRenderer.setCamera(camera);
-
-      // console.log(e.screenX - e.clientX, e.screenY - e.clientY);
-      // console.log(e)
-    });
-
-    // const scene = createRandomScene();
-    const scene = createScene();
-    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
-
-    const start = () => {
-      const orderedPixelIndexes = ArrayUtilities.shuffle(
-        [...new Array(raytraceStates.sceneWidth * raytraceStates.sceneHeight)].map((_, i) => i)
-      );
-
-      // const cameraPosition = new Vector3(13, 2, 3);
-      const cameraPosition = new Vector3(3, 3, 2);
-      const cameraLookAt = new Vector3(0, 0, 0);
-      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
-      const fov = 20;
-      const aperture = 0.1;
-      const camera = new Camera(
-        cameraPosition,
-        cameraLookAt,
-        new Vector3(0, 1, 0), // up
-        fov,
-        raytraceStates.sceneWidth / raytraceStates.sceneHeight, // aspect
-        aperture,
-        distToFocus,
-        0.0,
-        1.0
-      );
-
-      canvas.width = raytraceStates.sceneWidth;
-      canvas.height = raytraceStates.sceneHeight;
+      raytraceStates.camera = createCamera(new Vector3(coord.x * 3, coord.y, 0));
 
       raytraceRenderer.stop();
-      raytraceRenderer.setSize(raytraceStates.sceneWidth, raytraceStates.sceneHeight);
+
       raytraceRenderer.start({
         scene: bvhRoot,
+        camera: raytraceStates.camera
         // scene,
-        camera,
-        orderedPixelIndexes,
-        ...raytraceStates,
-        // sceneWidth: raytraceStates.sceneWidth,
-        // sceneHeight: raytraceStates.sceneHeight,
-        // maxWorkerNum: raytraceStates.maxWorkerNum,
-        // drawPointNum: 128,
-        // sampleCountPerPixel: 4,
-        // maxRayIterationCount: 16,
+        // camera,
+        // orderedPixelIndexes,
+        // ...raytraceStates
       });
+ 
     }
 
     const tick = (time) => {
@@ -2638,6 +2639,8 @@
       requestAnimationFrame(tick);
     }
 
+    canvas.addEventListener("mousemove", (e) => onMousemove(e));
+    raytraceStates.camera = createCamera();
     start();
     requestAnimationFrame(tick);
 
@@ -2662,40 +2665,40 @@
     new GUIDebugger();
 
     GUIDebugger.addRange({
-      name: "scene width",
-      initialValue: raytraceStates.sceneWidth,
+      name: "width",
+      initialValue: raytraceStates.width,
       min: 1,
       max: 640,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "scene width", value);
-        raytraceStates.sceneWidth = value;
+        console.log("GUIDebugger onChange", "width", value);
+        raytraceStates.width = value;
         start();
       }
     });
 
     GUIDebugger.addRange({
-      name: "scene height",
-      initialValue: raytraceStates.sceneHeight,
+      name: "height",
+      initialValue: raytraceStates.height,
       min: 1,
       max: 640,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "scene height", value);
-        raytraceStates.sceneHeight = value;
+        console.log("GUIDebugger onChange", "height", value);
+        raytraceStates.height = value;
         start();
       }
     });
 
     GUIDebugger.addRange({
       name: "worker num",
-      initialValue: raytraceStates.maxWorkerNum,
+      initialValue: raytraceStates.threadNum,
       min: 1,
       max: window.navigator.hardwareConcurrency,
       step: 1,
       onChange: (value) => {
         console.log("GUIDebugger onChange", "worker num", value);
-        raytraceStates.maxWorkerNum = value;
+        raytraceStates.threadNum = value;
         start();
       }
     });
