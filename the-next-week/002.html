@@ -2599,6 +2599,9 @@
 
       init();
 
+      // TODO: aspectだけアップデートしたい
+      raytraceStates.camera = createCamera();
+
       raytraceRenderer.start({
         scene: bvhRoot,
         camera: raytraceStates.camera
