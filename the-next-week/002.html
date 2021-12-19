@@ -2244,22 +2244,18 @@
 
       for(let i = 0; i < maxRayIterationCount; i++) {
         // hittable geometry list を渡している場合
-        // const hitInfo = HittableGeometryList.hit(
-        //   scene.hitObjects,
-        //   currentRay,
-        //   0.001,
-        //   1000
-        // );
-
-        // console.log('\u001b[31m' + "---------------------------------------------");
-        const hitInfo = BVHNode.hit(
-          scene,
+        const hitInfo = HittableGeometryList.hit(
+          scene.hitObjects,
           currentRay,
           0.001,
-          1000, 
+          1000
         );
-        // console.log("--- get hit info ---")
-        // console.log('\u001b[31m' + "hitInfo", hitInfo)
+        // const hitInfo = BVHNode.hit(
+        //   scene,
+        //   currentRay,
+        //   0.001,
+        //   1000, 
+        // );
  
         if(!hitInfo) {
           const rayDir = currentRay.direction.normalize();
@@ -2603,9 +2599,9 @@
       raytraceStates.camera = createCamera();
 
       raytraceRenderer.start({
-        scene: bvhRoot,
+        // scene: bvhRoot,
+        scene,
         camera: raytraceStates.camera
-        // scene,
         // camera,
         // ...raytraceStates
       });
@@ -2627,12 +2623,13 @@
 
       raytraceStates.camera = createCamera(new Vector3(coord.x * 3, coord.y, 0));
 
+      // TODO: stopせずcameraの位置だけ変えたい
       raytraceRenderer.stop();
 
       raytraceRenderer.start({
-        scene: bvhRoot,
+        // scene: bvhRoot,
+        scene,
         camera: raytraceStates.camera
-        // scene,
         // camera,
         // orderedPixelIndexes,
         // ...raytraceStates
