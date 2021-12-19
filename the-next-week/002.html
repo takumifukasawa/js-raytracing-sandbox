@@ -1480,9 +1480,23 @@
       #pointGeometry;
       #fullQuadMesh;
       #workers;
+      #workerScriptUrl;
 
       constructor({ gpu }) {
         this.#workers = [];
+
+        const utilitiesScript = document.querySelector("#utilities-script").textContent;
+        const workerScript = document.querySelector("#worker-script").textContent;
+        const webglScript = document.querySelector("#webgl-script").textContent;
+        const raytracingScript = document.querySelector("#raytracing-script").textContent;
+
+        const scriptBlob = new Blob([
+          workerScript,
+          utilitiesScript,
+          webglScript,
+          raytracingScript,
+        ]);
+        this.#workerScriptUrl = window.URL.createObjectURL(scriptBlob);
 
         this.#renderer = new GLRenderer({ gpu });
         this.#renderTarget = new GLRenderTarget({ gpu });
@@ -1638,20 +1652,6 @@
         // 一応copy
         const needsUpdatePixelIndexes = [...orderedPixelIndexes];
 
-        // NOTE: 本当は外から渡したい
-        const utilitiesScript = document.querySelector("#utilities-script").textContent;
-        const workerScript = document.querySelector("#worker-script").textContent;
-        const webglScript = document.querySelector("#webgl-script").textContent;
-        const raytracingScript = document.querySelector("#raytracing-script").textContent;
-
-        const scriptBlob = new Blob([
-          workerScript,
-          utilitiesScript,
-          webglScript,
-          raytracingScript,
-        ]);
-        const blobUrl = window.URL.createObjectURL(scriptBlob);
-
         const threadNum = Math.min(maxWorkerNum, window.navigator.hardwareConcurrency);
 
         const tryExecWorker = async (worker) => {
@@ -1679,7 +1679,7 @@
         }
 
         for(let i = 0; i < threadNum; i++) {
-          const worker = new Worker(blobUrl);
+          const worker = new Worker(this.#workerScriptUrl);
           this.#workers.push(worker);
 
           worker.onmessage = async (e) => {
