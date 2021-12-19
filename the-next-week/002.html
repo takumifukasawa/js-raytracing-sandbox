@@ -2542,20 +2542,39 @@
       return scene;
     }
 
+    const clientPosition = {
+      x: 0.5,
+      y: 0.5,
+    };
+
     // initial args
     const raytraceStates = {
       camera: null,
-      width: 160,
-      height: 90,
+      width: 320,
+      height: 180,
       threadNum: Math.min(8, window.navigator.hardwareConcurrency),
-      drawPointNum: 256,
-      sampleCountPerPixel: 32,
-      maxRayIterationCount: 64,
+      drawPointNum: 64,
+      sampleCountPerPixel: 4,
+      maxRayIterationCount: 16,
     } 
 
-    const createCamera = (offset = Vector3.zero) => {
+    const canvas = document.querySelector(".js-canvas");
+
+    const gpu = new GPU({
+      canvas,
+    });
+
+    const raytraceRenderer = new RaytraceRenderer({ gpu });
+
+    // const scene = createRandomScene();
+    const scene = createScene();
+    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
+
+    const createCamera = () => {
       // const cameraPosition = new Vector3(13, 2, 3);
-      const cameraPosition = (new Vector3(3, 3, 2)).add(offset);
+      const cameraPosition = 
+        new Vector3(3, 3, 2)
+          .add(new Vector3(clientPosition.x * 3, clientPosition.y, 0));
       const cameraLookAt = new Vector3(0, 0, 0);
       const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
       const fov = 20;
@@ -2572,18 +2591,6 @@
         1.0
       );
     }
-
-    const canvas = document.querySelector(".js-canvas");
-
-    const gpu = new GPU({
-      canvas,
-    });
-
-    const raytraceRenderer = new RaytraceRenderer({ gpu });
-
-    // const scene = createRandomScene();
-    const scene = createScene();
-    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
 
     const init = () => {
       const orderedPixelIndexes = ArrayUtilities.shuffle(
@@ -2607,7 +2614,6 @@
       raytraceRenderer.start({
         // scene: bvhRoot,
         scene,
-        // TODO: aspectだけアップデートしたい
         camera: createCamera()
       });
     }
@@ -2626,8 +2632,11 @@
       }
       coord.x *= aspect;
 
+      clientPosition.x = coord.x;
+      clientPosition.y = coord.y;
+
       // TODO: camera position だけ変えたい
-      raytraceRenderer.updateCamera(createCamera(new Vector3(coord.x * 3, coord.y, 0)));
+      raytraceRenderer.updateCamera(createCamera());
     }
 
     const tick = (time) => {
@@ -2671,7 +2680,6 @@
         canvas.style.transform = `scale(${value})`;
       },
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "canvas scale", value);
         canvas.style.transform = `scale(${value})`;
       }
     });
@@ -2683,7 +2691,6 @@
       max: 640,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "width", value);
         raytraceStates.width = value;
         start();
       }
@@ -2696,7 +2703,6 @@
       max: 640,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "height", value);
         raytraceStates.height = value;
         start();
       }
@@ -2709,7 +2715,6 @@
       max: window.navigator.hardwareConcurrency,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "worker num", value);
         raytraceStates.threadNum = value;
         start();
       }
@@ -2719,10 +2724,9 @@
       name: "draw point num each worker",
       initialValue: raytraceStates.drawPointNum,
       min: 1,
-      max: 2048,
+      max: 4096,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "draw point num", value);
         raytraceStates.drawPointNum = value;
         start();
       }
@@ -2735,7 +2739,6 @@
       max: 128,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "sample count per pixel", value);
         raytraceStates.sampleCountPerPixel = value;
         start();
       }
@@ -2748,7 +2751,6 @@
       max: 128,
       step: 1,
       onChange: (value) => {
-        console.log("GUIDebugger onChange", "max ray iteration count", value);
         raytraceStates.maxRayIterationCount = value;
         start();
       }
