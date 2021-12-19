@@ -1483,7 +1483,6 @@
     class RaytraceRenderer {
       #renderer;
       #renderTarget;
-      #camera;
       #pointMesh;
       #pointGeometry;
       #fullQuadMesh;
@@ -1491,6 +1490,7 @@
       #workerScriptUrl;
       #beginDrawPointIndex;
 
+      #camera;
       #updatePixelIndexes;
       #threadNum;
       #width;
@@ -1672,15 +1672,30 @@
         this.#drawPointNum = drawPointNum;
       }
 
-      start({
-        scene,
-        camera,
-     }) {
+      updateCamera(camera = null) {
+        if(camera) {
+          this.#camera = camera;
+        }
+        this.#beginDrawPointIndex = 0;
+      }
+
+      start({ scene, camera }) {
+        if(camera) {
+          this.#camera = camera;
+        }
+
+        if(!this.#camera) {
+          throw "no camera";
+        }
+
         this.#beginDrawPointIndex = 0;
 
         const tryExecWorker = async (worker) => {
           // for debug
           // await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
+          // if(waitMsec >= 0) {
+          //   console.log(waitMsec)
+          // }
           // await wait(1000);
 
           const pixelIndexes = this.#updatePixelIndexes.slice(
@@ -1691,7 +1706,7 @@
 
           const args = {
             scene,
-            camera,
+            camera: this.#camera,
             width: this.#width,
             height: this.#height,
             sampleCountPerPixel: this.#sampleCountPerPixel,
@@ -1702,7 +1717,10 @@
           if(pixelIndexes.length > 0) {
             worker.postMessage([args]);
           } else {
-            console.log("end worker !")
+            // 60FPSずつ再帰呼び出しして待つ
+            await wait(MathUtilities.getRandomRange(1000 / 60));
+            tryExecWorker(worker);
+            // console.log("end worker !")
           }
         }
 
@@ -2546,7 +2564,7 @@
 
     const createCamera = (offset = Vector3.zero) => {
       // const cameraPosition = new Vector3(13, 2, 3);
-      const cameraPosition = new Vector3(3, 3, 2).add(offset);
+      const cameraPosition = (new Vector3(3, 3, 2)).add(offset);
       const cameraLookAt = new Vector3(0, 0, 0);
       const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
       const fov = 20;
@@ -2621,19 +2639,21 @@
       }
       coord.x *= aspect;
 
-      raytraceStates.camera = createCamera(new Vector3(coord.x * 3, coord.y, 0));
+      // raytraceStates.camera = ;
 
       // TODO: stopせずcameraの位置だけ変えたい
-      raytraceRenderer.stop();
+      // raytraceRenderer.stop();
 
-      raytraceRenderer.start({
-        // scene: bvhRoot,
-        scene,
-        camera: raytraceStates.camera
-        // camera,
-        // orderedPixelIndexes,
-        // ...raytraceStates
-      });
+      raytraceRenderer.updateCamera(createCamera(new Vector3(coord.x * 3, coord.y, 0)));
+
+      // raytraceRenderer.start({
+      //   // scene: bvhRoot,
+      //   scene,
+      //   camera: raytraceStates.camera
+      //   // camera,
+      //   // orderedPixelIndexes,
+      //   // ...raytraceStates
+      // });
  
     }
 
