@@ -1486,6 +1486,7 @@
       #fullQuadMesh;
       #workers;
       #workerScriptUrl;
+      #beginDrawPointIndex;
 
       constructor({ gpu }) {
         this.#workers = [];
@@ -1665,16 +1666,19 @@
 
         const threadNum = Math.min(maxWorkerNum, window.navigator.hardwareConcurrency);
 
+        this.#beginDrawPointIndex = 0;
+
         const tryExecWorker = async (worker) => {
           // for debug
           // await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
           // await wait(1000);
 
-          // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
-          // const updatePixelIndexes = needsUpdatePixelIndexes.splice(0, drawPointNum);
-          const updatePixelIndexes = [...new Array(drawPointNum)].map(() => {
-            return Math.floor(Math.random() * needsUpdatePixelIndexes.length);
-          });
+          const updatePixelIndexes = needsUpdatePixelIndexes.slice(
+            this.#beginDrawPointIndex,
+            this.#beginDrawPointIndex + drawPointNum
+          );
+          this.#beginDrawPointIndex += drawPointNum;
+
           const args = {
             scene,
             camera: this.#camera,
@@ -2554,7 +2558,7 @@
         x: ((e.clientX - rect.left) / rect.width) * 2 - 1,
         y: ((e.clientY - rect.top) / rect.height) * 2 - 1
       }
-      // coord.x *= aspect;
+      coord.x *= aspect;
 
       // console.log(coord);
 
@@ -2620,6 +2624,12 @@
         camera,
         orderedPixelIndexes,
         ...raytraceStates,
+        // sceneWidth: raytraceStates.sceneWidth,
+        // sceneHeight: raytraceStates.sceneHeight,
+        // maxWorkerNum: raytraceStates.maxWorkerNum,
+        // drawPointNum: 128,
+        // sampleCountPerPixel: 4,
+        // maxRayIterationCount: 16,
       });
     }
 
