@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>in-one-weekend</title>
+  <title>js-raytracing for article</title>
   <style>
     * {
       margin: 0;
@@ -54,12 +54,16 @@
         } else {
           const elem = document.createElement('div');
           document.body.appendChild(elem);
+          elem.style.padding = '0.5em';
+          elem.style.boxSizing = 'border-box';
           elem.style.position = 'fixed';
           elem.style.top = '0';
           elem.style.right = '0';
           elem.style.color = 'black';
           elem.style.textAlign = 'right';
-          elem.style.fontSize = '9px';
+          elem.style.fontFamily = 'sans-serif';
+          elem.style.fontSize = '10px';
+          elem.style.fontWeight = 'bold';
           this.#rootElement = elem;
         }
       }
@@ -2731,7 +2735,7 @@ f 3/2/8 4/5/8 6/6/8
       initialSampleCountPerPixel: 2,
       sampleCountPerPixelStep: 2,
       maxSampleCountPerPixel: 64,
-      maxRayIterationCount: 16,
+      maxRayIterationCount: 64,
       // for debug
       // threadNum: 1,
       // drawPointNum: 1,
