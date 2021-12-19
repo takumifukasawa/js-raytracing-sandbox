@@ -693,6 +693,10 @@
         const gl = canvas.getContext('webgl2');
         this.#gl = gl;
       }
+
+      setSize(width, height) {
+        this.#gl.viewport(0, 0, width, height);
+      }
     }
 
     class Shader extends BaseGLObject {
@@ -1230,6 +1234,11 @@
         this.#dummyTexture = createWhite1x1();
       }
 
+      setSize(width, height) {
+        const gl = this.#gpu.gl;
+        gl.viewport(0, 0, width, height);
+      }
+
       setRenderTarget(renderTarget) {
         const gl = this.#gpu.gl;
         this.#renderTarget = renderTarget;
@@ -1616,6 +1625,8 @@
       start({
         scene,
         camera,
+        sceneWidth,
+        sceneHeight,
         orderedPixelIndexes,
         maxWorkerNum,
         drawPointNum,
@@ -1623,17 +1634,6 @@
         maxRayIterationCount,
       }) {
         this.initPointGeometry(drawPointNum);
-
-        console.log(
-          "--- start raytrace ---", 
-          scene,
-          camera,
-          orderedPixelIndexes,
-          maxWorkerNum,
-          drawPointNum,
-          sampleCountPerPixel,
-          maxRayIterationCount,
-        );
 
         // 一応copy
         const needsUpdatePixelIndexes = [...orderedPixelIndexes];
@@ -1701,6 +1701,7 @@
       }
 
       setSize(width, height) {
+        this.#renderer.setSize(width, height);
         this.#renderTarget.setSize(width, height);
       }
 
@@ -2329,30 +2330,6 @@
   <script>
     'use strict';
 
-    // constants
-    // const CANVAS_WIDTH = 320;
-    // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 128;
-    // const SAMPLE_COUNT_PER_PIXEL = 128;
-    // const MAX_WORKER_NUM = 8;
-    // const MAX_RAY_ITERATION_COUNT = 64;
-
-    // middle
-    const CANVAS_WIDTH = 320;
-    const CANVAS_HEIGHT = 180;
-    const DRAW_POINT_NUM = 128;
-    const SAMPLE_COUNT_PER_PIXEL = 8;
-    const MAX_WORKER_NUM = 1;
-    const MAX_RAY_ITERATION_COUNT = 64;
-
-    // constants for debug
-    // const CANVAS_WIDTH = 320;
-    // const CANVAS_HEIGHT = 180;
-    // const DRAW_POINT_NUM = 1;
-    // const SAMPLE_COUNT_PER_PIXEL = 1;
-    // const MAX_WORKER_NUM = 1;
-    // const MAX_RAY_ITERATION_COUNT = 64;
-
     // const createScene = () => {
     //   const scene = new HittableGeometryList();
 
@@ -2533,14 +2510,20 @@
     }
 
 
+    // initial args
+    const raytraceStates = {
+      sceneWidth: 320,
+      sceneHeight: 180,
+      maxWorkerNum: Math.min(2, window.navigator.hardwareConcurrency),
+      drawPointNum: 128,
+      sampleCountPerPixel: 8,
+      maxRayIterationCount: 64,
+    } 
 
     const canvas = document.querySelector(".js-canvas");
 
-    const sceneWidth = CANVAS_WIDTH;
-    const sceneHeight = CANVAS_HEIGHT;
-
-    canvas.width = sceneWidth;
-    canvas.height = sceneHeight;
+    canvas.width = raytraceStates.sceneWidth;
+    canvas.height = raytraceStates.sceneHeight;
 
     const gpu = new GPU({
       canvas,
@@ -2552,45 +2535,40 @@
     const scene = createScene();
     const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
 
-    // const cameraPosition = new Vector3(13, 2, 3);
-    const cameraPosition = new Vector3(3, 3, 2);
-    const cameraLookAt = new Vector3(0, 0, 0);
-    const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
-    const fov = 20;
-    const aperture = 0.1;
-    const camera = new Camera(
-      cameraPosition,
-      cameraLookAt,
-      new Vector3(0, 1, 0), // up
-      fov,
-      sceneWidth / sceneHeight, // aspect
-      aperture,
-      distToFocus,
-      0.0,
-      1.0
-    );
-
-    // initial args
-    const raytraceArgs = {
-      maxWorkerNum: Math.min(2, window.navigator.hardwareConcurrency),
-      drawPointNum: DRAW_POINT_NUM,
-      sampleCountPerPixel: SAMPLE_COUNT_PER_PIXEL,
-      maxRayIterationCount: MAX_RAY_ITERATION_COUNT,
-    }    
-
     const start = () => {
       const orderedPixelIndexes = ArrayUtilities.shuffle(
-        [...new Array(sceneWidth * sceneHeight)].map((_, i) => i)
+        [...new Array(raytraceStates.sceneWidth * raytraceStates.sceneHeight)].map((_, i) => i)
       );
 
+      // const cameraPosition = new Vector3(13, 2, 3);
+      const cameraPosition = new Vector3(3, 3, 2);
+      const cameraLookAt = new Vector3(0, 0, 0);
+      const distToFocus = Vector3.subVectors(cameraPosition, cameraLookAt).length();
+      const fov = 20;
+      const aperture = 0.1;
+      const camera = new Camera(
+        cameraPosition,
+        cameraLookAt,
+        new Vector3(0, 1, 0), // up
+        fov,
+        raytraceStates.sceneWidth / raytraceStates.sceneHeight, // aspect
+        aperture,
+        distToFocus,
+        0.0,
+        1.0
+      );
+
+      canvas.width = raytraceStates.sceneWidth;
+      canvas.height = raytraceStates.sceneHeight;
+
       raytraceRenderer.stop();
-      raytraceRenderer.setSize(sceneWidth, sceneHeight);
+      raytraceRenderer.setSize(raytraceStates.sceneWidth, raytraceStates.sceneHeight);
       raytraceRenderer.start({
         scene: bvhRoot,
         // scene,
         camera,
         orderedPixelIndexes,
-        ...raytraceArgs,
+        ...raytraceStates,
       });
     }
 
@@ -2598,12 +2576,6 @@
       raytraceRenderer.render();
       requestAnimationFrame(tick);
     }
-
-    // 今は使わない
-    // const setSize = () => {
-    //   start();
-    // }
-    // window.addEventListener('resize', () => setSize());
 
     start();
     requestAnimationFrame(tick);
@@ -2629,57 +2601,82 @@
     new GUIDebugger();
 
     GUIDebugger.addRange({
+      name: "scene width",
+      initialValue: raytraceStates.sceneWidth,
+      min: 1,
+      max: 640,
+      step: 1,
+      onChange: (value) => {
+        console.log("GUIDebugger onChange", "scene width", value);
+        raytraceStates.sceneWidth = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
+      name: "scene height",
+      initialValue: raytraceStates.sceneHeight,
+      min: 1,
+      max: 640,
+      step: 1,
+      onChange: (value) => {
+        console.log("GUIDebugger onChange", "scene height", value);
+        raytraceStates.sceneHeight = value;
+        start();
+      }
+    });
+
+    GUIDebugger.addRange({
       name: "worker num",
-      initialValue: raytraceArgs.maxWorkerNum,
+      initialValue: raytraceStates.maxWorkerNum,
       min: 1,
       max: window.navigator.hardwareConcurrency,
       step: 1,
       onChange: (value) => {
         console.log("GUIDebugger onChange", "worker num", value);
-        raytraceArgs.maxWorkerNum = value;
+        raytraceStates.maxWorkerNum = value;
         start();
       }
     });
 
     GUIDebugger.addRange({
       name: "draw point num each worker",
-      initialValue: raytraceArgs.drawPointNum,
+      initialValue: raytraceStates.drawPointNum,
       min: 1,
       max: 256,
       step: 1,
       onChange: (value) => {
         console.log("GUIDebugger onChange", "draw point num", value);
-        raytraceArgs.drawPointNum = value;
+        raytraceStates.drawPointNum = value;
         start();
       }
     });
 
     GUIDebugger.addRange({
       name: "sampler count per pixel",
-      initialValue: raytraceArgs.sampleCountPerPixel,
+      initialValue: raytraceStates.sampleCountPerPixel,
       min: 1,
       max: 256,
       step: 1,
       onChange: (value) => {
         console.log("GUIDebugger onChange", "sample count per pixel", value);
-        raytraceArgs.sampleCountPerPixel = value;
+        raytraceStates.sampleCountPerPixel = value;
         start();
       }
     });
 
     GUIDebugger.addRange({
       name: "max ray iteration count",
-      initialValue: raytraceArgs.maxRayIterationCount,
+      initialValue: raytraceStates.maxRayIterationCount,
       min: 1,
       max: 128,
       step: 1,
       onChange: (value) => {
         console.log("GUIDebugger onChange", "max ray iteration count", value);
-        raytraceArgs.maxRayIterationCount = value;
+        raytraceStates.maxRayIterationCount = value;
         start();
       }
     });
-
   </script>
 </body>
 </html>
