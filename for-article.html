@@ -610,11 +610,11 @@
       }
 
       static boxCompare(a, b, axisKey) {
-        const boxA = BaseHittableGeometry
-          .getGeometryClass(a.type)
+        const boxA = ClassResolver
+          .getHittableGeometry(a.type)
           .boundingBox(a, a.time0, a.time1);
-        const boxB = BaseHittableGeometry
-          .getGeometryClass(b.type)
+        const boxB = ClassResolver
+          .getHittableGeometry(b.type)
           .boundingBox(b, b.time0, b.time1);
         if(!boxA || !boxB) {
           console.log("no bounding box in bvh node");
@@ -666,11 +666,11 @@
         if(objectSpan == 1) {
           this.left = objects[start];
           this.right = objects[start];
-          boxLeft = BaseHittableGeometry
-            .getGeometryClass(this.left.type)
+          boxLeft = ClassResolver
+            .getHittableGeometry(this.left.type)
             .boundingBox(this.left, time0, time1);
-          boxRight = BaseHittableGeometry
-            .getGeometryClass(this.right.type)
+          boxRight = ClassResolver
+            .getHittableGeometry(this.right.type)
             .boundingBox(this.right, time0, time1);
  
         } else if(objectSpan == 2) {
@@ -681,11 +681,11 @@
             this.left = objects[start + 1];
             this.right = objects[start];
           }
-          boxLeft = BaseHittableGeometry
-            .getGeometryClass(this.left.type)
+          boxLeft = ClassResolver
+            .getHittableGeometry(this.left.type)
             .boundingBox(this.left, time0, time1);
-          boxRight = BaseHittableGeometry
-            .getGeometryClass(this.right.type)
+          boxRight = ClassResolver
+            .getHittableGeometry(this.right.type)
             .boundingBox(this.right, time0, time1);
 
         } else {
@@ -728,7 +728,7 @@
         // 末端
         if(bvhNode.type) {
           // console.log("last node", bvhNode)
-          const geometryClass = BaseHittableGeometry.getGeometryClass(bvhNode.type);
+          const geometryClass = ClassResolver.getHittableGeometry(bvhNode.type);
           const box = geometryClass.boundingBox(bvhNode, bvhNode.time0, bvhNode.time1);
           if(!AABB.hit(box, ray, tmin, tmax)) {
             return null;
@@ -1414,9 +1414,36 @@
       }
     }
   </script>
-
+<!--  -->
   <script id="raytracing-script">
     'use strict';
+
+    class ClassResolver {
+      static getHittableGeometry(type) {
+        switch(type) {
+          case BaseHittableGeometry.GeometryType.Sphere:
+            return HittableSphereGeometry;
+          case BaseHittableGeometry.GeometryType.MovingSphere:
+            return HittableMovingSphereGeometry;
+          case BaseHittableGeometry.GeometryType.Polygons:
+            return HittablePolygonsGeometry;
+          default:
+            throw "invalid geometry type";
+        }
+      }
+      static getHittableMaterial(type) {
+        switch(type) {
+          case BaseRaytraceMaterial.MaterialType.Lambertian:
+            return RaytraceLambertianMaterial;
+          case BaseRaytraceMaterial.MaterialType.Metal:
+            return RaytraceMetalMaterial;
+          case BaseRaytraceMaterial.MaterialType.Dielectric:
+            return RaytraceDielectricMaterial;
+          default:
+            throw "invalid material type.";
+        }
+      }
+    }
 
     class Ray {
       #origin;
@@ -1913,19 +1940,6 @@
         throw 'implement method.'
       }
 
-      static getGeometryClass(type) {
-        switch(type) {
-          case BaseHittableGeometry.GeometryType.Sphere:
-            return HittableSphereGeometry;
-          case BaseHittableGeometry.GeometryType.MovingSphere:
-            return HittableMovingSphereGeometry;
-          case BaseHittableGeometry.GeometryType.Polygons:
-            return HittablePolygonsGeometry;
-          default:
-            throw "invalid geometry type";
-        }
-      }
-
       static isFrontFace(ray, normal) {
         return Vector3.dotVectors(ray.direction, normal) < 0;
       }
@@ -2310,8 +2324,8 @@
           const hitObject = hitObjects[i];
 
           const currentHitInfo =
-            BaseHittableGeometry
-              .getGeometryClass(hitObject.type)
+            ClassResolver
+              .getHittableGeometry(hitObject.type)
               .hit(
                 hitObject,
                 ray,
@@ -2339,8 +2353,8 @@
         
         for(let i = 0; i < hitObjects.length; i++) {
           // tmpBox = hitObjects[i].boundingBox(t0, t1);
-          tmpBox = BaseHittableGeometry
-            .getGeometryClass(hitObjects[i].type)
+          tmpBox = ClassResolver
+            .getHittableGeometry(hitObjects[i].type)
             .boundingBox(hitObjects[i], t0, t1);
  
           if(!tmpBox) {
@@ -2363,19 +2377,6 @@
         Lambertian: "Lambertian",
         Metal: "Metal",
         Dielectric: "Dielectric"
-      }
-
-      static getMaterialClass(type) {
-        switch(type) {
-          case BaseRaytraceMaterial.MaterialType.Lambertian:
-            return RaytraceLambertianMaterial;
-          case BaseRaytraceMaterial.MaterialType.Metal:
-            return RaytraceMetalMaterial;
-          case BaseRaytraceMaterial.MaterialType.Dielectric:
-            return RaytraceDielectricMaterial;
-          default:
-            throw "invalid material type.";
-        }
       }
 
       static scatter(inRay, hitInfo) {
@@ -2544,8 +2545,8 @@
         }
 
         const surfaceInfo =
-          BaseRaytraceMaterial
-            .getMaterialClass(hitInfo.material.type)
+          ClassResolver
+            .getHittableMaterial(hitInfo.material.type)
             .scatter(hitInfo.material, currentRay, hitInfo);
 
         if(!surfaceInfo) {
