@@ -1916,35 +1916,72 @@
         return { positions, colors, }
       }
 
+      updatePixels({ positions, colors }) {
+        this.#pointGeometry.updateAttribute('position', positions.flat());
+        this.#pointGeometry.updateAttribute('color', colors.flat());
+        this.updateRenderTarget();
+        this.#beginDrawPointIndex += positions.length;
+      }
 
-      start({ scene, camera }) {
-        if(camera) {
-          this.#camera = camera;
+      tryCreateCalcPixelsArgs(scene) {
+        const pixelIndexes = this.#updatePixelIndexes.slice(
+          this.#beginDrawPointIndex,
+          this.#beginDrawPointIndex + this.#drawPointNum
+        );
+
+        if(pixelIndexes.length < 1) {
+          return null;
         }
 
-        if(!this.#camera) {
-          throw "no camera";
-        }
+        return {
+          scene,
+          camera: this.#camera,
+          width: this.#width,
+          height: this.#height,
+          sampleCountPerPixel: this.#currentSampleCountPerPixel,
+          maxRayIterationCount: this.#maxRayIterationCount,
+          updatePixelIndexes: pixelIndexes
+        };
+      }
 
+      proceedNextStep() {
         this.#beginDrawPointIndex = 0;
+        this.#currentSampleCountPerPixel = MathUtilities.clamp(
+          this.#currentSampleCountPerPixel + this.#sampleCountPerPixelStep,
+          this.#initialSampleCountPerPixel,
+          this.#maxSampleCountPerPixel
+        );
+      }
 
+      beginRenderByMainThread(scene) {
+        const updater = async () => {
+          const args = this.tryCreateCalcPixelsArgs(scene);
+          if(args) {
+            const data = RaytraceRenderer.calcPixelsColor(args);
+            this.updatePixels(data);
+          } else {
+            // 必要なピクセルを更新しきったら精度を高くして描画
+            // 最大サンプリング数まで到達したら打ち切り
+            if(this.#currentSampleCountPerPixel < this.#maxSampleCountPerPixel) {
+              this.proceedNextStep();
+            }
+          }
+
+          await wait(1000 / 60);
+
+          // threadが立ってたら打ち切り
+          if(this.#threadNum < 1) {
+            updater();
+          }
+        }
+        updater();
+      }
+
+      beginRenderByWorker() {
         const tryExecWorker = async (i) => {
-          const pixelIndexes = this.#updatePixelIndexes.slice(
-            this.#beginDrawPointIndex,
-            this.#beginDrawPointIndex + this.#drawPointNum
-          );
+          const args = this.tryCreateCalcPixelsArgs(scene);
 
-          const args = {
-            scene,
-            camera: this.#camera,
-            width: this.#width,
-            height: this.#height,
-            sampleCountPerPixel: this.#currentSampleCountPerPixel,
-            maxRayIterationCount: this.#maxRayIterationCount,
-            updatePixelIndexes: pixelIndexes
-          };
-
-          if(pixelIndexes.length > 0) {
+          if(args) {
             // for debug
             // await wait(1000);
             this.#workers[i].worker.postMessage([args]);
@@ -1956,12 +1993,7 @@
               ArrayUtilities.all(this.#workers, ({ isFinished }) => isFinished) &&
               this.#currentSampleCountPerPixel < this.#maxSampleCountPerPixel
             ) {
-              this.#beginDrawPointIndex = 0;
-              this.#currentSampleCountPerPixel = MathUtilities.clamp(
-                this.#currentSampleCountPerPixel + this.#sampleCountPerPixelStep,
-                this.#initialSampleCountPerPixel,
-                this.#maxSampleCountPerPixel
-              );
+              this.proceedNextStep();
             }
             await wait(1000 / 60);
             await tryExecWorker(i);
@@ -1976,13 +2008,8 @@
           });
 
           worker.onmessage = async (e) => {
-            const [{ positions, colors }] = e.data;
-            this.#pointGeometry.updateAttribute('position', positions.flat());
-            this.#pointGeometry.updateAttribute('color', colors.flat());
-
-            this.updateRenderTarget();
-
-            this.#beginDrawPointIndex += positions.length;
+            const [args] = e.data;
+            this.updatePixels(args);
             tryExecWorker(i)
           };
 
@@ -1991,6 +2018,25 @@
           }
 
           tryExecWorker(i);
+        }
+      }
+
+      start({ scene, camera }) {
+        if(camera) {
+          this.#camera = camera;
+        }
+
+        if(!this.#camera) {
+          throw "no camera";
+        }
+
+        this.#beginDrawPointIndex = 0;
+
+        if(this.#threadNum > 0) {
+          this.beginRenderByWorker(scene);
+        } else {
+          // workerが使えない場合
+          this.beginRenderByMainThread(scene);
         }
       }
 
@@ -2890,9 +2936,9 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "worker num",
+      name: "thread num",
       initialValue: raytraceStates.threadNum,
-      min: 1,
+      min: 0,
       max: window.navigator.hardwareConcurrency,
       step: 1,
       onChange: (value) => {
