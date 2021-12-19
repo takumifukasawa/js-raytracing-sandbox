@@ -2152,6 +2152,9 @@
         this.indices = indices;
       }
 
+      // ref:
+      // https://graphicscodex.com/Sample2-RayTriangleIntersection.pdf
+      // https://zellij.hatenablog.com/entry/20131207/p1
       static hit(polygons, ray, tMin, tMax) {
         const faceCount = polygons.indices.length / 3;
 

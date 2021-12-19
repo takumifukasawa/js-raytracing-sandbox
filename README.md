@@ -21,3 +21,5 @@
 [週末レイトレーシング (翻訳)](https://inzkyk.xyz/ray_tracing_in_one_weekend/)
 
 [https://graphicscodex.com/Sample2-RayTriangleIntersection.pdf](https://graphicscodex.com/Sample2-RayTriangleIntersection.pdf)
+
+[重心座標系（Barycentric coordinate system）](https://zellij.hatenablog.com/entry/20131207/p1)
