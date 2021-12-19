@@ -169,6 +169,14 @@
         arr.splice(start, 0, ...pick);
         return arr;
       }
+      static all(arr, test) {
+        for(let i = 0; i < arr.length; i++) {
+          if(!test(arr[i])) {
+            return false;
+          }
+        }
+        return true;
+      }
     }
 
     class TextureUtilities {
@@ -1794,6 +1802,7 @@
         this.initPointGeometry(this.#drawPointNum);
       }
 
+      // TODO: オブジェクトが動いた時もresetできるようにフラグで管理したい
       updateCamera(camera = null) {
         if(camera) {
           this.#camera = camera;
@@ -1801,15 +1810,6 @@
         // reset
         this.#beginDrawPointIndex = 0;
         this.#currentSampleCountPerPixel = this.#initialSampleCountPerPixel;
-      }
-
-      isFinishedAllWorker() {
-        for(let i = 0; i < this.#workers.length; i++) {
-          if(!this.#workers[i].isFinished) {
-            return false;
-          }
-        }
-        return true;
       }
 
       static getSceneColor(ray, scene, maxRayIterationCount) {
@@ -1949,7 +1949,7 @@
             // 必要なピクセルを更新しきったら精度を高くして描画
             // 最大サンプリング数まで到達したら打ち切り
             if(
-              this.isFinishedAllWorker() &&
+              ArrayUtilities.all(this.#workers, ({ isFinished }) => isFinished) &&
               this.#currentSampleCountPerPixel < this.#maxSampleCountPerPixel
             ) {
               this.#beginDrawPointIndex = 0;
@@ -2731,7 +2731,7 @@ f 3/2/8 4/5/8 6/6/8
       drawPointNum: 128,
       initialSampleCountPerPixel: 2,
       sampleCountPerPixelStep: 2,
-      maxSampleCountPerPixel: 256,
+      maxSampleCountPerPixel: 64,
       maxRayIterationCount: 16,
       // for debug
       // threadNum: 1,
