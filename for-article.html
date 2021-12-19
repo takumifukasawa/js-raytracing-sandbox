@@ -1418,6 +1418,17 @@
   <script id="raytracing-script">
     'use strict';
 
+    // RaytraceRendererに入れたくないのであえて外部化
+    const calcNoHitColor = (ray) => {
+      const rayDir = ray.direction.normalize();
+      const t = 0.5 * (rayDir.y + 1.0);
+      const skyColor =
+        new Vector3(1.0, 1.0, 1.0)
+          .mulScalar(1.0 - t)
+          .add(new Vector3(0.7, 0.6, 0.4).mulScalar(t));
+      return skyColor;
+    }
+
     class ClassResolver {
       static getHittableGeometry(type) {
         switch(type) {
@@ -1801,6 +1812,50 @@
         return true;
       }
 
+      static getSceneColor(ray, scene, maxRayIterationCount) {
+        const resultColor = Vector3.one;
+        let currentRay = ray;
+
+        for(let i = 0; i < maxRayIterationCount; i++) {
+          // hittable geometry list を渡している場合
+          const hitInfo = HittableGeometryList.hit(
+            scene.hitObjects,
+            currentRay,
+            0.001,
+            1000
+          );
+          // WIP: bvhを渡してる場合
+          // const hitInfo = BVHNode.hit(
+          //   scene,
+          //   currentRay,
+          //   0.001,
+          //   1000, 
+          // );
+
+          // sky color
+          if(!hitInfo) {
+            resultColor.mul(calcNoHitColor(currentRay));
+            break;
+         }
+
+          const surfaceInfo =
+            ClassResolver
+              .getHittableMaterial(hitInfo.material.type)
+              .scatter(hitInfo.material, currentRay, hitInfo);
+
+          if(!surfaceInfo) {
+            // fall back
+            resultColor.mul(Vector3.zero);
+            break;
+          }
+
+          currentRay = surfaceInfo.scatteredRay;
+          resultColor.mul(surfaceInfo.attenuation);
+        }
+
+        return resultColor;
+      }
+
       static calcPixelsColor({
         scene,
         camera,
@@ -1809,7 +1864,6 @@
         sampleCountPerPixel,
         maxRayIterationCount,
         updatePixelIndexes,
-        getSceneColorFunc
       }) {
         const positions = updatePixelIndexes.map(i => {
           // ピクセル座標
@@ -1845,7 +1899,7 @@
               y + addY,
               // MathUtilities.getRandomRange(camera.time0, camera.time1)
             );
-            const currentColor = getSceneColorFunc(ray, scene, maxRayIterationCount);
+            const currentColor = RaytraceRenderer.getSceneColor(ray, scene, maxRayIterationCount);
             accColor.x += gamma(currentColor.x);
             accColor.y += gamma(currentColor.y);
             accColor.z += gamma(currentColor.z);
@@ -2570,65 +2624,12 @@
   <script id="worker-script">
     'use strict';
 
-    // scene: bvhNode
-    const getSceneColor = (ray, scene, maxRayIterationCount) => {
-      const resultColor = Vector3.one;
-      let currentRay = ray;
-
-      for(let i = 0; i < maxRayIterationCount; i++) {
-        // hittable geometry list を渡している場合
-        const hitInfo = HittableGeometryList.hit(
-          scene.hitObjects,
-          currentRay,
-          0.001,
-          1000
-        );
-        // const hitInfo = BVHNode.hit(
-        //   scene,
-        //   currentRay,
-        //   0.001,
-        //   1000, 
-        // );
-
-        // sky color
-        if(!hitInfo) {
-          const rayDir = currentRay.direction.normalize();
-          const t = 0.5 * (rayDir.y + 1.0);
-          resultColor.mul(
-            new Vector3(1.0, 1.0, 1.0)
-              .mulScalar(1.0 - t)
-              .add(new Vector3(0.7, 0.6, 0.4).mulScalar(t))
-          );
-          break;
-        }
-
-        const surfaceInfo =
-          ClassResolver
-            .getHittableMaterial(hitInfo.material.type)
-            .scatter(hitInfo.material, currentRay, hitInfo);
-
-        if(!surfaceInfo) {
-          // fall back
-          resultColor.mul(Vector3.zero);
-          break;
-        }
-
-        currentRay = surfaceInfo.scatteredRay;
-        resultColor.mul(surfaceInfo.attenuation);
-      }
-
-      return resultColor;
-    }
-
     self.onmessage = (e) => {
       const [args] = e.data;
 
-      const { positions, colors } = RaytraceRenderer.calcPixelsColor({
-        getSceneColorFunc: getSceneColor,
-        ...args,
-      });
+      const result = RaytraceRenderer.calcPixelsColor({ ...args, });
 
-      postMessage([{ positions, colors }]);
+      postMessage([result]);
     }
   </script>
 
@@ -2748,7 +2749,7 @@ f 3/2/8 4/5/8 6/6/8
     const raytraceRenderer = new RaytraceRenderer({ gpu });
 
     const scene = createScene();
-    const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
+    // const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
 
     const createCamera = () => {
       const cameraPosition = 
@@ -2779,7 +2780,7 @@ f 3/2/8 4/5/8 6/6/8
         updatePixelIndexes: orderedPixelIndexes,
         ...raytraceStates
       });
-    }
+   }
 
     const start = () => {
       canvas.width = raytraceStates.width;
@@ -2828,9 +2829,9 @@ f 3/2/8 4/5/8 6/6/8
     requestAnimationFrame(tick);
 
     // const bvhRoot = BVHNode.createRoot(scene.hitObjects, 0, 1);
-    console.log("---------");
-    console.log(bvhRoot);
-    console.log("---------");
+    // console.log("---------");
+    // console.log(bvhRoot);
+    // console.log("---------");
 
     // // for debug
     // const hitInfo = BVHNode.hit(
