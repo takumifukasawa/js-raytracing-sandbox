@@ -2624,8 +2624,8 @@
 
       // floor
       scene.add(new HittableSphereGeometry(
-        new Vector3(0, -100, 0),
-        100,
+        new Vector3(0, -200, 0),
+        200,
         new RaytraceLambertianMaterial(new Vector3(0.8, 0.8, 0))
       ));
 
@@ -2701,7 +2701,7 @@ f 3/2/8 4/5/8 6/6/8
       height: 135,
       threadNum: Math.min(8, window.navigator.hardwareConcurrency),
       drawPointNum: 128,
-      initialSampleCountPerPixel: 4,
+      initialSampleCountPerPixel: 2,
       sampleCountPerPixelStep: 4,
       maxSampleCountPerPixel: 256,
       maxRayIterationCount: 16,
