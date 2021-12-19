@@ -2225,18 +2225,18 @@
 
       for(let i = 0; i < maxRayIterationCount; i++) {
         // hittable geometry list を渡している場合
-        const hitInfo = HittableGeometryList.hit(
-          scene.hitObjects,
-          currentRay,
-          0.001,
-          1000
-        );
-        // const hitInfo = BVHNode.hit(
-        //   scene,
+        // const hitInfo = HittableGeometryList.hit(
+        //   scene.hitObjects,
         //   currentRay,
         //   0.001,
-        //   1000, 
+        //   1000
         // );
+        const hitInfo = BVHNode.hit(
+          scene,
+          currentRay,
+          0.001,
+          1000, 
+        );
  
         if(!hitInfo) {
           const rayDir = currentRay.direction.normalize();
@@ -2584,8 +2584,8 @@
       init();
 
       raytraceRenderer.start({
-        // scene: bvhRoot,
-        scene,
+        scene: bvhRoot,
+        // scene,
         camera: createCamera()
       });
     }
