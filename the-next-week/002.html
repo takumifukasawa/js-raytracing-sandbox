@@ -27,6 +27,90 @@
   <script id="utilities-script">
     'use strict';
 
+    class GUIDebugger {
+      static #instance;
+      #rootElement;
+    
+      static get instance() {
+        if (!GUIDebugger.#instance) {
+          throw 'no instantiated';
+        }
+        return GUIDebugger.#instance;
+      }
+    
+      get rootElement() {
+        return this.#rootElement;
+      }
+    
+      constructor(rootElement = null) {
+        if (GUIDebugger.#instance) {
+          return GUIDebugger.#instance;
+        }
+      
+        GUIDebugger.#instance = this;
+      
+        if (rootElement) {
+          this.#rootElement = rootElement;
+        } else {
+          const elem = document.createElement('div');
+          document.body.appendChild(elem);
+          elem.style.position = 'fixed';
+          elem.style.top = '0';
+          elem.style.right = '0';
+          elem.style.color = 'black';
+          elem.style.textAlign = 'right';
+          elem.style.fontSize = '9px';
+          this.#rootElement = elem;
+        }
+      }
+    
+      static addRange({
+        name,
+        min,
+        max,
+        step,
+        initialValue,
+        onInput = () => {},
+        onChange = () => {},
+      }) {
+        const instance = GUIDebugger.instance;
+        const currentValue = initialValue ?? min;
+      
+        const elem = document.createElement('div');
+        const label = document.createElement('p');
+        const input = document.createElement('input');
+      
+        label.style.margin = '0.5em 0';
+      
+        input.type = 'range';
+        input.min = min;
+        input.max = max;
+        input.value = currentValue;
+        input.step = step;
+      
+        const updateLabel = (value) => {
+          label.textContent = `[${name}] min: ${min}, max: ${max}, value: ${value}`;
+        };
+      
+        input.addEventListener('input', (e) => {
+          const { value } = e.target;
+          updateLabel(value);
+          onInput(Number(value));
+        });
+        input.addEventListener('change', (e) => {
+          const { value } = e.target;
+          updateLabel(value);
+          onChange(Number(value));
+        });
+      
+        elem.appendChild(label);
+        elem.appendChild(input);
+        instance.rootElement.appendChild(elem);
+      
+        updateLabel(currentValue);
+      }
+    }
+
     const createWhite1x1 = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -1386,8 +1470,11 @@
       #pointMesh;
       #pointGeometry;
       #fullQuadMesh;
+      #workers;
 
       constructor({ gpu }) {
+        this.#workers = [];
+
         this.#renderer = new GLRenderer({ gpu });
         this.#renderTarget = new GLRenderTarget({ gpu });
 
@@ -1537,6 +1624,17 @@
       }) {
         this.initPointGeometry(drawPointNum);
 
+        console.log(
+          "--- start raytrace ---", 
+          scene,
+          camera,
+          orderedPixelIndexes,
+          maxWorkerNum,
+          drawPointNum,
+          sampleCountPerPixel,
+          maxRayIterationCount,
+        );
+
         // 一応copy
         const needsUpdatePixelIndexes = [...orderedPixelIndexes];
 
@@ -1557,9 +1655,8 @@
         const threadNum = Math.min(maxWorkerNum, window.navigator.hardwareConcurrency);
 
         const tryExecWorker = async (worker) => {
-          // 負荷対策でちょっと間引く
-          await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
           // for debug
+          // await wait(MathUtilities.getRandomRange(1000 / 30, 1000 / 10));
           // await wait(1000);
 
           // TODO: 動的な変更はあまり良くない気がするのでsliceでcopyに変更する
@@ -1583,6 +1680,7 @@
 
         for(let i = 0; i < threadNum; i++) {
           const worker = new Worker(blobUrl);
+          this.#workers.push(worker);
 
           worker.onmessage = async (e) => {
             const [{ positions, colors }] = e.data;
@@ -1615,6 +1713,13 @@
       render() {
         this.#renderer.clear();
         this.#renderer.render({ meshes: [ this.#fullQuadMesh ]});
+      }
+
+      stop() {
+        for(let i = 0; i < this.#workers.length; i++) {
+          this.#workers[i].terminate();
+        }
+        this.#workers = [];
       }
     }
 
@@ -2237,7 +2342,7 @@
     const CANVAS_HEIGHT = 180;
     const DRAW_POINT_NUM = 128;
     const SAMPLE_COUNT_PER_PIXEL = 8;
-    const MAX_WORKER_NUM = 8;
+    const MAX_WORKER_NUM = 1;
     const MAX_RAY_ITERATION_COUNT = 64;
 
     // constants for debug
@@ -2464,22 +2569,27 @@
       0.0,
       1.0
     );
-   
+
+    const raytraceArgs = {
+      maxWorkerNum: MAX_WORKER_NUM,
+      drawPointNum: DRAW_POINT_NUM,
+      sampleCountPerPixel: SAMPLE_COUNT_PER_PIXEL,
+      maxRayIterationCount: MAX_RAY_ITERATION_COUNT,
+    }    
+
     const start = () => {
       const orderedPixelIndexes = ArrayUtilities.shuffle(
         [...new Array(sceneWidth * sceneHeight)].map((_, i) => i)
       );
 
+      raytraceRenderer.stop();
       raytraceRenderer.setSize(sceneWidth, sceneHeight);
       raytraceRenderer.start({
         scene: bvhRoot,
         // scene,
         camera,
         orderedPixelIndexes,
-        maxWorkerNum: MAX_WORKER_NUM,
-        drawPointNum: DRAW_POINT_NUM,
-        sampleCountPerPixel: SAMPLE_COUNT_PER_PIXEL,
-        maxRayIterationCount: MAX_RAY_ITERATION_COUNT,
+        ...raytraceArgs,
       });
     }
 
@@ -2514,6 +2624,22 @@
     // );
     // console.log("---------");
     // console.log("result hitInfo", hitInfo);
+
+    new GUIDebugger();
+    GUIDebugger.addRange({
+      name: "worker num",
+      min: 1,
+      max: window.navigator.hardwareConcurrency,
+      step: 1,
+      onChange: (value) => {
+        console.log("GUIDebugger onChange", "hoge", value)
+        raytraceArgs.maxWorkerNum = value;
+        start();
+      }
+    });
+
+    const restart = () => {
+    }
   </script>
 </body>
 </html>
