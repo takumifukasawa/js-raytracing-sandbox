@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>in-one-weekend</title>
+  <title>js-raytracing-sandbox for-article</title>
   <style>
     * {
       margin: 0;
@@ -63,6 +63,7 @@
           elem.style.textAlign = 'right';
           elem.style.fontSize = '10px';
           elem.style.fontWeight = 'bold';
+          elem.style.fontFamily = 'sans-serif';
           this.#rootElement = elem;
         }
       }
@@ -116,6 +117,29 @@
       
         updateLabel(currentValue);
       }
+
+      static addButton({
+        label,
+        onClick = () => {},
+      }) {
+        const instance = GUIDebugger.instance;
+      
+        const elem = document.createElement('div');
+        const input = document.createElement('input');
+
+        elem.style.marginTop = '0.5em';
+      
+        input.type = 'button';
+        input.value = label;
+     
+        input.addEventListener('click', (e) => {
+          onClick();
+        });
+
+        elem.appendChild(input);
+        instance.rootElement.appendChild(elem);
+      }
+
     }
 
     class StringUtilities {
@@ -1625,6 +1649,7 @@
       #maxSampleCountPerPixel;
       #maxRayIterationCount;
       #drawPointNum;
+      #mainThreadUpdateTimer;
 
       constructor({ gpu }) {
         this.#workers = [];
@@ -1954,7 +1979,7 @@
       }
 
       beginRenderByMainThread(scene) {
-        const updater = async () => {
+        const updater = () => {
           const args = this.tryCreateCalcPixelsArgs(scene);
           if(args) {
             const data = RaytraceRenderer.calcPixelsColor(args);
@@ -1967,11 +1992,12 @@
             }
           }
 
-          await wait(1000 / 60);
-
           // threadが立ってたら打ち切り
           if(this.#threadNum < 1) {
-            updater();
+            this.#mainThreadUpdateTimer = window.setTimeout(() => updater(), 1000 / 60)
+          } else {
+            window.clearTimeout(this.#mainThreadUpdateTimer);
+            this.#mainThreadUpdateTimer = null;
           }
         }
         updater();
@@ -1981,11 +2007,7 @@
         const tryExecWorker = async (i) => {
           const args = this.tryCreateCalcPixelsArgs(scene);
 
-          if(args) {
-            // for debug
-            // await wait(1000);
-            this.#workers[i].worker.postMessage([args]);
-          } else {
+          if(!this.#workers[i] || !args) {
             this.#workers[i].isFinished = true;
             // 必要なピクセルを更新しきったら精度を高くして描画
             // 最大サンプリング数まで到達したら打ち切り
@@ -1997,6 +2019,10 @@
             }
             await wait(1000 / 60);
             await tryExecWorker(i);
+          } else {
+            // for debug
+            // await wait(1000);
+            this.#workers[i].worker.postMessage([args]);
           }
         }
 
@@ -2061,6 +2087,9 @@
           this.#workers[i].worker.terminate();
         }
         this.#workers = [];
+
+        window.clearTimeout(this.#mainThreadUpdateTimer);
+        this.#mainThreadUpdateTimer = null;
       }
     }
 
@@ -3008,6 +3037,20 @@ f 3/2/8 4/5/8 6/6/8
         start();
       }
     });
+
+    GUIDebugger.addButton({
+      label: "restart",
+      onClick: () => {
+        start();
+      }
+    })
+
+    GUIDebugger.addButton({
+      label: "stop",
+      onClick: () => {
+        raytraceRenderer.stop();
+      }
+    })
   </script>
 </body>
 </html>
