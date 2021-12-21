@@ -30,6 +30,7 @@
     class GUIDebugger {
       static #instance;
       #rootElement;
+      #innerElement;
     
       static get instance() {
         if (!GUIDebugger.#instance) {
@@ -40,6 +41,10 @@
     
       get rootElement() {
         return this.#rootElement;
+      }
+      
+      get innerElement() {
+        return this.#innerElement;
       }
     
       constructor(rootElement = null) {
@@ -64,7 +69,13 @@
           elem.style.fontSize = '10px';
           elem.style.fontWeight = 'bold';
           elem.style.fontFamily = 'sans-serif';
+          elem.style.border = '1px solid rgba(210, 210, 210, 0.3)'
+          elem.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
           this.#rootElement = elem;
+
+          const innerElem = document.createElement('div');
+          this.#rootElement.appendChild(innerElem);
+          this.#innerElement = innerElem;
         }
       }
     
@@ -111,7 +122,7 @@
       
         elem.appendChild(label);
         elem.appendChild(input);
-        instance.rootElement.appendChild(elem);
+        instance.innerElement.appendChild(elem);
 
         onInit(currentValue);
       
@@ -137,7 +148,7 @@
         });
 
         elem.appendChild(input);
-        instance.rootElement.appendChild(elem);
+        instance.innerElement.appendChild(elem);
       }
 
     }
@@ -2929,7 +2940,7 @@ f 3/2/8 4/5/8 6/6/8
     new GUIDebugger();
 
     GUIDebugger.addRange({
-      name: "canvas scale",
+      name: "canvasの拡大率",
       initialValue: 1,
       min: 0.5,
       max: 3,
@@ -2943,7 +2954,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "width",
+      name: "横幅",
       initialValue: raytraceStates.width,
       min: 1,
       max: 640,
@@ -2955,7 +2966,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "height",
+      name: "縦幅",
       initialValue: raytraceStates.height,
       min: 1,
       max: 640,
@@ -2967,7 +2978,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "thread num",
+      name: "スレッド数",
       initialValue: raytraceStates.threadNum,
       min: 0,
       max: maxThreadNum,
@@ -2979,7 +2990,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "draw point num each worker",
+      name: "スレッドごとに計算するピクセル数",
       initialValue: raytraceStates.drawPointNum,
       min: 1,
       max: 1024,
@@ -2991,7 +3002,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "initial sample count per pixel",
+      name: "ピクセルごとのサンプリング数: 初期値",
       initialValue: raytraceStates.initialSampleCountPerPixel,
       min: 1,
       max: 128,
@@ -3003,7 +3014,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "sample count per pixel step",
+      name: "サンプリング数の上昇数",
       initialValue: raytraceStates.sampleCountPerPixelStep,
       min: 1,
       max: 128,
@@ -3015,7 +3026,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "max sample count per pixel",
+      name: "最大サンプリング数",
       initialValue: raytraceStates.maxSampleCountPerPixel,
       min: 1,
       max: 512,
@@ -3027,7 +3038,7 @@ f 3/2/8 4/5/8 6/6/8
     });
 
     GUIDebugger.addRange({
-      name: "max ray iteration count",
+      name: "最大ループ数",
       initialValue: raytraceStates.maxRayIterationCount,
       min: 1,
       max: 128,
