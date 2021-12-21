@@ -1,5 +1,9 @@
 # js-raytracing-sandbox
 
+記事用動作デモ
+
+[https://takumifukasawa.github.io/js-raytracing-sandbox/for-article.html](https://takumifukasawa.github.io/js-raytracing-sandbox/for-article.html)
+
 ## refs
 
 [https://raytracing.github.io/books/RayTracingInOneWeekend.html](https://raytracing.github.io/books/RayTracingInOneWeekend.html)
